@@ -10,6 +10,11 @@ sys.path.insert(0, str(project_root))
 from forts.data_pipeline.data_pipeline_setup import DataPipeline, build_mixed_trainval
 from forts.model_pipeline.model_pipeline import ModelPipeline, ModelPipelineCoreset
 from forts.metrics.evaluation_pipeline import evaluation_pipeline_forts_forecast
+from neuralforecast.auto import AutoNHITS
+
+
+class TestModelPipelineCoreset(ModelPipelineCoreset):
+    MODEL_LIST = [("AutoNHITS", AutoNHITS)]
 
 
 @pytest.fixture
@@ -75,7 +80,7 @@ def test_coreset_leave_one_out(setup_coreset_pipelines):
         dataset_group=f"ALL_BUT_{target_ds}_{target_grp}",
     )
 
-    mixed_mp = ModelPipelineCoreset(
+    mixed_mp = TestModelPipelineCoreset(
         mixed_trainval,
         freq="ME",
         h=target_dp.h,
@@ -85,6 +90,8 @@ def test_coreset_leave_one_out(setup_coreset_pipelines):
         mode="out_domain_coreset",
         dataset_source="MIXED",
         dataset_group_source=f"ALL_BUT_{target_ds}_{target_grp}",
+        test_mode=True,
+        max_steps=2,
     )
 
     heldout_mp = ModelPipeline(target_dp)
@@ -109,6 +116,7 @@ def test_coreset_leave_one_out(setup_coreset_pipelines):
         mode="out_domain",
         dataset_source="MIXED",
         dataset_group_source=f"ALL_BUT_{target_ds}_{target_grp}",
+        test_mode=True,
     )
 
     assert "Forecast SMAPE MEAN (last window) Per Series_out_domain" in row_forecast

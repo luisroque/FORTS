@@ -36,9 +36,9 @@ class LoadDataset:
     }
 
     frequency_pd = {
-        "Yearly": "Y",
-        "Quarterly": "Q",
-        "Monthly": "M",
+        "Yearly": "YE",
+        "Quarterly": "QE",
+        "Monthly": "ME",
         "Daily": "D",
         "Hourly": "H",
         "15T": "15T",

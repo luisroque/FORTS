@@ -25,12 +25,15 @@ def evaluation_pipeline_forts_forecast(
     dataset_group_source: str = None,
     mode: str = "in_domain",
     finetune: bool = False,
+    test_mode: bool = False,
 ) -> None:
     """
     Evaluate forecast for different modes: basic forecasting and transfer learning
     in domain and out of domain
     """
-    if finetune:
+    if test_mode:
+        results_folder = "assets/test_results"
+    elif finetune:
         results_folder = "assets/results_forecast_fine_tuning"
     else:
         results_folder = f"assets/results_forecast_{mode}"
@@ -42,10 +45,16 @@ def evaluation_pipeline_forts_forecast(
     model_name = str(model.models[0])
 
     if dataset_source:
-        results_file = os.path.join(
-            results_folder,
-            f"{dataset}_{dataset_group}_{model_name}_{horizon}_trained_on_{dataset_source}_{dataset_group_source}.json",
-        )
+        if finetune:
+            results_file = os.path.join(
+                results_folder,
+                f"{dataset}_{dataset_group}_{model_name}_{horizon}_trained_on_{dataset_source}_{dataset_group_source}_finetuning.json",
+            )
+        else:
+            results_file = os.path.join(
+                results_folder,
+                f"{dataset}_{dataset_group}_{model_name}_{horizon}_trained_on_{dataset_source}_{dataset_group_source}.json",
+            )
     else:
         results_file = os.path.join(
             results_folder, f"{dataset}_{dataset_group}_{model_name}_{horizon}.json"

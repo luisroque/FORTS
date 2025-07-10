@@ -102,7 +102,13 @@ class ModelPipeline(_ModelListMixin):
         self.models = {}
 
     def hyper_tune_and_train(
-        self, dataset_source, dataset_group_source, max_evals=20, mode="in_domain"
+        self,
+        dataset_source,
+        dataset_group_source,
+        max_evals=20,
+        mode="in_domain",
+        test_mode: bool = False,
+        max_steps: int = 1000,
     ):
         """
         Trains and hyper-tunes all six models.
@@ -130,10 +136,13 @@ class ModelPipeline(_ModelListMixin):
 
         model_list = self.get_model_list()
 
-        weights_folder = f"assets/model_weights_{mode}"
+        if test_mode:
+            weights_folder = "assets/test_model_weights"
+        else:
+            weights_folder = f"assets/model_weights_{mode}"
         os.makedirs(weights_folder, exist_ok=True)
 
-        save_dir = f"assets/model_weights_{mode}/hypertuning{mode_suffix}"
+        save_dir = f"{weights_folder}/hypertuning{mode_suffix}"
         os.makedirs(save_dir, exist_ok=True)
 
         for name, ModelClass in model_list:
@@ -158,6 +167,7 @@ class ModelPipeline(_ModelListMixin):
                 base_config["start_padding_enabled"] = True
                 base_config["scaler_type"] = tune.choice([None, "standard"])
                 base_config["log_every_n_steps"] = 10
+            base_config["max_steps"] = max_steps
 
             if original_mode == "out_domain":
                 base_config["input_size"] = self.h
@@ -205,6 +215,8 @@ class ModelPipeline(_ModelListMixin):
         nf_model: CustomNeuralForecast,
         dataset_source: str,
         dataset_group_source: str,
+        test_mode: bool = False,
+        max_steps: int = 10,
     ):
         """
         Fine-tunes a given model for 10 epochs on the new target training data.
@@ -219,7 +231,7 @@ class ModelPipeline(_ModelListMixin):
         # Get the underlying auto model and update its config for fine-tuning
         auto_model = nf_model.models[0]
 
-        auto_model.max_steps = 10
+        auto_model.max_steps = max_steps
         auto_model.val_check_steps = 10
 
         # Create a new NeuralForecast object for the fine-tuning process
@@ -229,7 +241,10 @@ class ModelPipeline(_ModelListMixin):
         finetune_nf.fit(df=target_train_df, val_size=self.h)
 
         # Save the fine-tuned model
-        save_dir = f"assets/model_weights_finetuned/hypertuning"
+        if test_mode:
+            save_dir = "assets/test_model_weights/hypertuning_finetuned"
+        else:
+            save_dir = "assets/model_weights_finetuned/hypertuning"
         os.makedirs(save_dir, exist_ok=True)
         nf_save_path = os.path.join(
             save_dir,

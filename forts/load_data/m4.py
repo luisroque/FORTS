@@ -28,8 +28,8 @@ class M4Dataset(LoadDataset):
     }
 
     frequency_pd = {
-        "Quarterly": "Q",
-        "Monthly": "M",
+        "Quarterly": "QE",
+        "Monthly": "ME",
     }
 
     data_group = [*horizons_map]

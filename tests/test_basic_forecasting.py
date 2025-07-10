@@ -10,6 +10,11 @@ sys.path.insert(0, str(project_root))
 from forts.data_pipeline.data_pipeline_setup import DataPipeline
 from forts.model_pipeline.model_pipeline import ModelPipeline
 from forts.metrics.evaluation_pipeline import evaluation_pipeline_forts_forecast
+from neuralforecast.auto import AutoNHITS
+
+
+class TestModelPipeline(ModelPipeline):
+    MODEL_LIST = [("AutoNHITS", AutoNHITS)]
 
 
 @pytest.fixture
@@ -22,7 +27,7 @@ def setup_pipeline():
         horizon=12,
         window_size=24,
     )
-    mp = ModelPipeline(data_pipeline=dp)
+    mp = TestModelPipeline(data_pipeline=dp)
     return dp, mp
 
 
@@ -39,6 +44,8 @@ def test_basic_forecasting(setup_pipeline):
         mode="basic_forecasting",
         dataset_source="Tourism",
         dataset_group_source="Monthly",
+        test_mode=True,
+        max_steps=2,
     )
 
     # Evaluate the first model
@@ -61,6 +68,7 @@ def test_basic_forecasting(setup_pipeline):
         window_size=dp.window_size,
         window_size_source=dp.window_size,
         mode="basic_forecasting",
+        test_mode=True,
     )
 
     # Check that some results were produced

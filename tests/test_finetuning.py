@@ -10,6 +10,11 @@ sys.path.insert(0, str(project_root))
 from forts.data_pipeline.data_pipeline_setup import DataPipeline
 from forts.model_pipeline.model_pipeline import ModelPipeline
 from forts.metrics.evaluation_pipeline import evaluation_pipeline_forts_forecast
+from neuralforecast.auto import AutoNHITS
+
+
+class TestModelPipeline(ModelPipeline):
+    MODEL_LIST = [("AutoNHITS", AutoNHITS)]
 
 
 @pytest.fixture
@@ -22,7 +27,7 @@ def setup_finetune_pipelines():
         horizon=12,
         window_size=24,
     )
-    source_mp = ModelPipeline(data_pipeline=source_dp)
+    source_mp = TestModelPipeline(data_pipeline=source_dp)
 
     target_dp = DataPipeline(
         dataset_name="Tourism",
@@ -31,7 +36,7 @@ def setup_finetune_pipelines():
         horizon=12,
         window_size=24,
     )
-    target_mp = ModelPipeline(data_pipeline=target_dp)
+    target_mp = TestModelPipeline(data_pipeline=target_dp)
 
     return source_mp, target_mp, target_dp
 
@@ -47,6 +52,8 @@ def test_finetuning(setup_finetune_pipelines):
         mode="out_domain",
         dataset_source="Labour",
         dataset_group_source="Monthly",
+        test_mode=True,
+        max_steps=2,
     )
 
     model_name, model = list(source_mp.models.items())[0]
@@ -57,6 +64,8 @@ def test_finetuning(setup_finetune_pipelines):
         model,
         dataset_source="Tourism",
         dataset_group_source="Monthly",
+        test_mode=True,
+        max_steps=2,
     )
 
     row_forecast = {}
@@ -80,6 +89,7 @@ def test_finetuning(setup_finetune_pipelines):
         dataset_source="Labour",
         dataset_group_source="Monthly",
         finetune=True,
+        test_mode=True,
     )
 
     assert "Forecast SMAPE MEAN (last window) Per Series_out_domain" in row_forecast
