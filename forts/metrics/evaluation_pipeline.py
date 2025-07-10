@@ -24,12 +24,16 @@ def evaluation_pipeline_forts_forecast(
     dataset_source: str = None,
     dataset_group_source: str = None,
     mode: str = "in_domain",
+    finetune: bool = False,
 ) -> None:
     """
     Evaluate forecast for different modes: basic forecasting and transfer learning
     in domain and out of domain
     """
-    results_folder = f"assets/results_forecast_{mode}"
+    if finetune:
+        results_folder = "assets/results_forecast_fine_tuning"
+    else:
+        results_folder = f"assets/results_forecast_{mode}"
     os.makedirs(results_folder, exist_ok=True)
 
     if window_size_source is None:

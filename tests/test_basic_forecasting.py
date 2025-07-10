@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 import pytest
+import os
 
 # Add the project root to the Python path
 project_root = Path(__file__).resolve().parents[1]
@@ -43,6 +44,10 @@ def test_basic_forecasting(setup_pipeline):
     # Evaluate the first model
     model_name, model = list(mp.models.items())[0]
     row_forecast = {}
+
+    results_file = f"assets/results_forecast_basic_forecasting/Tourism_Monthly_{model_name}_12.json"
+    if os.path.exists(results_file):
+        os.remove(results_file)
 
     evaluation_pipeline_forts_forecast(
         dataset="Tourism",

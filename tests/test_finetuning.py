@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 import pytest
+import os
 
 # Add the project root to the Python path
 project_root = Path(__file__).resolve().parents[1]
@@ -51,9 +52,19 @@ def test_finetuning(setup_finetune_pipelines):
     model_name, model = list(source_mp.models.items())[0]
 
     # Fine-tune the model on the target data
-    finetuned_model = target_mp.finetune(model_name, model)
+    finetuned_model = target_mp.finetune(
+        model_name,
+        model,
+        dataset_source="Tourism",
+        dataset_group_source="Monthly",
+    )
 
     row_forecast = {}
+
+    results_file = f"assets/results_forecast_fine_tuning/Tourism_Monthly_{model_name}_12_trained_on_Labour_Monthly.json"
+    if os.path.exists(results_file):
+        os.remove(results_file)
+
     evaluation_pipeline_forts_forecast(
         dataset="Tourism",
         dataset_group="Monthly",
@@ -68,6 +79,7 @@ def test_finetuning(setup_finetune_pipelines):
         mode="out_domain",
         dataset_source="Labour",
         dataset_group_source="Monthly",
+        finetune=True,
     )
 
     assert "Forecast SMAPE MEAN (last window) Per Series_out_domain" in row_forecast

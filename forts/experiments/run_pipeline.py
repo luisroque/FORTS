@@ -3,8 +3,6 @@ from forts.experiments.helper import (
     cmd_parser,
 )
 
-args = cmd_parser()
-
 import pandas as pd
 from forts.data_pipeline.data_pipeline_setup import DataPipeline, build_mixed_trainval
 from forts.metrics.evaluation_pipeline import (
@@ -14,6 +12,7 @@ from forts.model_pipeline.model_pipeline import ModelPipeline, ModelPipelineCore
 from forts.experiments.helper import (
     extract_frequency,
     extract_horizon,
+    set_device,
 )
 
 
@@ -70,6 +69,9 @@ SOURCE_DATASET_GROUP_FREQ_TRANSFER_LEARNING = {
 
 if __name__ == "__main__":
     # multiprocessing.set_start_method("spawn")
+
+    args = cmd_parser()
+    set_device(use_gpu=args.use_gpu)
 
     results = []
 
@@ -131,7 +133,12 @@ if __name__ == "__main__":
                             row_forecast_tl = {}
 
                             if args.finetune:
-                                model = model_pipeline.finetune(model_name, model)
+                                model = model_pipeline.finetune(
+                                    model_name,
+                                    model,
+                                    dataset_source=DATASET,
+                                    dataset_group_source=DATASET_GROUP,
+                                )
 
                             evaluation_pipeline_forts_forecast(
                                 dataset=DATASET,
@@ -147,6 +154,7 @@ if __name__ == "__main__":
                                 mode="out_domain",
                                 window_size=H,
                                 window_size_source=H_TL,
+                                finetune=args.finetune,
                             )
 
                             dataset_group_results.append(row_forecast_tl)
@@ -207,7 +215,12 @@ if __name__ == "__main__":
                         row = {}
 
                         if args.finetune:
-                            nf_model = heldout_mp.finetune(model_name, nf_model)
+                            nf_model = heldout_mp.finetune(
+                                model_name,
+                                nf_model,
+                                dataset_source=target_ds,
+                                dataset_group_source=target_grp,
+                            )
 
                         evaluation_pipeline_forts_forecast(
                             dataset=target_ds,
@@ -223,6 +236,7 @@ if __name__ == "__main__":
                             mode="out_domain",
                             window_size=target_data_pipeline.h,
                             window_size_source=target_data_pipeline.h,
+                            finetune=args.finetune,
                         )
                         LOO_RESULTS.append(row)
             elif args.basic_forecasting:

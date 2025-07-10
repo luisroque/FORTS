@@ -68,6 +68,4 @@ def cmd_parser():
     )
     args = parser.parse_args()
 
-    set_device(args.use_gpu)
-
     return args

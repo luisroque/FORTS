@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 import pytest
+import os
 
 # Add the project root to the Python path
 project_root = Path(__file__).resolve().parents[1]
@@ -14,12 +15,30 @@ from forts.metrics.evaluation_pipeline import evaluation_pipeline_forts_forecast
 @pytest.fixture
 def setup_coreset_pipelines():
     """Sets up pipelines for coreset leave-one-out testing."""
-    # Define a small set of datasets for the coreset
     coreset_datasets = {
-        ("Labour", "Monthly"): {"FREQ": "ME", "H": 12},
-        ("Tourism", "Monthly"): {"FREQ": "ME", "H": 12},
+        "Tourism": {
+            "Monthly": {"FREQ": "ME", "H": 24},
+        },
+        "M1": {
+            "Monthly": {"FREQ": "ME", "H": 24},
+            "Quarterly": {"FREQ": "Q", "H": 8},
+        },
+        "M3": {
+            "Monthly": {"FREQ": "ME", "H": 24},
+            "Quarterly": {"FREQ": "Q", "H": 8},
+            "Yearly": {"FREQ": "Y", "H": 4},
+        },
+        "M4": {
+            "Monthly": {"FREQ": "ME", "H": 24},
+            "Quarterly": {"FREQ": "Q", "H": 8},
+        },
+        "Traffic": {
+            "Daily": {"FREQ": "D", "H": 30},
+        },
+        "M5": {
+            "Daily": {"FREQ": "D", "H": 30},
+        },
     }
-
     all_data_pipelines = {
         (ds, grp): DataPipeline(
             dataset_name=ds,
@@ -28,7 +47,8 @@ def setup_coreset_pipelines():
             horizon=meta["H"],
             window_size=meta["H"] * 2,
         )
-        for (ds, grp), meta in coreset_datasets.items()
+        for ds, groups in coreset_datasets.items()
+        for grp, meta in groups.items()
     }
     return all_data_pipelines
 
@@ -70,6 +90,10 @@ def test_coreset_leave_one_out(setup_coreset_pipelines):
     heldout_mp = ModelPipeline(target_dp)
     model_name, model = list(mixed_mp.models.items())[0]
     row_forecast = {}
+
+    results_file = f"assets/results_forecast_out_domain/{target_ds}_{target_grp}_{model_name}_12_trained_on_MIXED_ALL_BUT_{target_ds}_{target_grp}.json"
+    if os.path.exists(results_file):
+        os.remove(results_file)
 
     evaluation_pipeline_forts_forecast(
         dataset=target_ds,

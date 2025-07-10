@@ -199,7 +199,13 @@ class ModelPipeline(_ModelListMixin):
 
         print("\nAll Auto-models have been trained/tuned or loaded from disk.\n")
 
-    def finetune(self, model_name: str, nf_model: CustomNeuralForecast):
+    def finetune(
+        self,
+        model_name: str,
+        nf_model: CustomNeuralForecast,
+        dataset_source: str,
+        dataset_group_source: str,
+    ):
         """
         Fine-tunes a given model for 10 epochs on the new target training data.
         """
@@ -210,17 +216,27 @@ class ModelPipeline(_ModelListMixin):
 
         print(f"\n=== Fine-tuning {model_name} for 10 epochs... ===")
 
-        # Get the underlying torch model and update its config for fine-tuning
-        torch_model = nf_model.models[0]
-        new_config = torch_model.get_config()
-        new_config["max_steps"] = 10
-        new_config["val_check_steps"] = 10  # Evaluate at the end of fine-tuning
-        torch_model.set_config(new_config)
+        # Get the underlying auto model and update its config for fine-tuning
+        auto_model = nf_model.models[0]
+
+        auto_model.max_steps = 10
+        auto_model.val_check_steps = 10
 
         # Create a new NeuralForecast object for the fine-tuning process
-        finetune_nf = CustomNeuralForecast(models=[torch_model], freq=self.freq)
+        finetune_nf = CustomNeuralForecast(models=[auto_model], freq=self.freq)
 
+        # Fit the model on the new data
         finetune_nf.fit(df=target_train_df, val_size=self.h)
+
+        # Save the fine-tuned model
+        save_dir = f"assets/model_weights_finetuned/hypertuning"
+        os.makedirs(save_dir, exist_ok=True)
+        nf_save_path = os.path.join(
+            save_dir,
+            f"{dataset_source}_{dataset_group_source}_{model_name}_neuralforecast",
+        )
+        finetune_nf.save(path=nf_save_path, overwrite=True, save_dataset=False)
+        print(f"Saved fine-tuned {model_name} NeuralForecast object to {nf_save_path}")
 
         print(f"✓ Fine-tuning complete for {model_name}.")
         return finetune_nf
