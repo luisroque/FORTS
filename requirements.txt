@@ -1,0 +1,11 @@
+matplotlib==3.9.2
+seaborn==0.13.2
+scikit-learn==1.5.2
+scikit-optimize==0.10.2
+huggingface-hub==0.26.1
+datasetsforecast==0.0.8
+neuralforecast==2.0.0
+gluonts==0.15.1
+pytest==8.4.1
+orjson==3.10.18
+
