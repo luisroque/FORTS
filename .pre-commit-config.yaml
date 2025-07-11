@@ -44,7 +44,7 @@ repos:
     hooks:
     -   id: pytest
         name: pytest
-        entry: conda run -n forts pytest
+        entry: conda run -n forts pip install -r requirements-dev.txt && conda run -n forts pytest
         language: system
         types: [python]
         pass_filenames: false
