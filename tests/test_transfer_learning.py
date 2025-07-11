@@ -1,6 +1,4 @@
 import os
-import sys
-from pathlib import Path
 
 import pytest
 from neuralforecast.auto import AutoNHITS
@@ -8,10 +6,6 @@ from neuralforecast.auto import AutoNHITS
 from forts.data_pipeline.data_pipeline_setup import DataPipeline
 from forts.metrics.evaluation_pipeline import evaluation_pipeline_forts_forecast
 from forts.model_pipeline.model_pipeline import ModelPipeline
-
-# Add the project root to the Python path
-project_root = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(project_root))
 
 
 class TestModelPipeline(ModelPipeline):

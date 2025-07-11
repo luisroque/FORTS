@@ -1,18 +1,10 @@
 import os
-import sys
-from pathlib import Path
 
 import pytest
-
-# Add the project root to the Python path
-project_root = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(project_root))
-
 from neuralforecast.auto import AutoNHITS
 
 from forts.data_pipeline.data_pipeline_setup import DataPipeline
-from forts.metrics.evaluation_pipeline import \
-    evaluation_pipeline_forts_forecast
+from forts.metrics.evaluation_pipeline import evaluation_pipeline_forts_forecast
 from forts.model_pipeline.model_pipeline import ModelPipeline
 
 
@@ -76,37 +68,7 @@ def test_finetuning_logic(
     )
     model_name, model = list(source_mp.models.items())[0]
 
-    # 4. Replicate the logic from the experiment script
-    should_finetune_flag = True  # This simulates passing --finetune
-    if should_finetune_flag:
-        if H < 2 * H_TL:
-            print(
-                f"Skipping fine-tuning for {model_name} on {target_dataset}/{target_group} "
-                f"from {source_dataset}/{source_group}: "
-                f"Target horizon ({H}) is too small for source horizon ({H_TL})."
-            )
-        else:
-            model = target_mp.finetune(
-                model_name,
-                model,
-                dataset_source=target_dataset,
-                dataset_group_source=target_group,
-                test_mode=True,
-                max_steps=2,
-            )
-
-    # 5. Assert that the correct message (or lack thereof) was printed
-    captured = capsys.readouterr()
-    if should_skip:
-        assert "Skipping fine-tuning" in captured.out
-        assert (
-            f"Target horizon ({H}) is too small for source horizon ({H_TL})"
-            in captured.out
-        )
-    else:
-        assert "Skipping fine-tuning" not in captured.out
-
-    # 6. Run the evaluation to ensure the pipeline completes without crashing
+    # 4. Run the evaluation pipeline, which now contains the fine-tuning logic
     row_forecast = {}
     results_file = (
         f"assets/test_results/{target_dataset}_{target_group}_{model_name}_{H}_"
@@ -121,17 +83,32 @@ def test_finetuning_logic(
         model=model,
         pipeline=target_mp,
         period=target_dp.period,
-        horizon=target_dp.h,
-        freq=target_dp.freq,
+        horizon=H,
+        freq=target_freq,
         row_forecast=row_forecast,
-        window_size=target_dp.window_size,
-        window_size_source=source_mp.h,
+        window_size=H,
+        window_size_source=H_TL,
         mode="out_domain",
         dataset_source=source_dataset,
         dataset_group_source=source_group,
-        finetune=True,  # Replicates the experiment script's behavior
+        finetune=True,
         test_mode=True,
     )
 
-    # 7. Check that some results were produced
-    assert "Forecast SMAPE MEAN (last window) Per Series_out_domain" in row_forecast
+    # 5. Assert that the correct message (or lack thereof) was printed
+    captured = capsys.readouterr()
+    if should_skip:
+        assert "Skipping fine-tuning" in captured.out
+        assert (
+            f"Target horizon ({H}) is too small for source horizon ({H_TL})"
+            in captured.out
+        )
+        # The evaluation should exit early, so no results should be in the dictionary
+        assert (
+            "Forecast SMAPE MEAN (last window) Per Series_out_domain"
+            not in row_forecast
+        )
+    else:
+        assert "Skipping fine-tuning" not in captured.out
+        # The evaluation should complete, so results should be present
+        assert "Forecast SMAPE MEAN (last window) Per Series_out_domain" in row_forecast

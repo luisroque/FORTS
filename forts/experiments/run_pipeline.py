@@ -128,22 +128,6 @@ if __name__ == "__main__":
                         ) in model_pipeline_transfer_learning.models.items():
                             row_forecast_tl = {}
 
-                            if args.finetune:
-                                # Check if target dataset is large enough for fine-tuning
-                                if H < 2 * H_TL:
-                                    print(
-                                        f"Skipping fine-tuning for {model_name} on {DATASET}/{DATASET_GROUP} "
-                                        f"from {DATASET_TL}/{DATASET_GROUP_TL}: "
-                                        f"Target horizon ({H}) is too small for source horizon ({H_TL})."
-                                    )
-                                else:
-                                    model = model_pipeline.finetune(
-                                        model_name,
-                                        model,
-                                        dataset_source=DATASET,
-                                        dataset_group_source=DATASET_GROUP,
-                                    )
-
                             evaluation_pipeline_forts_forecast(
                                 dataset=DATASET,
                                 dataset_group=DATASET_GROUP,
@@ -217,14 +201,6 @@ if __name__ == "__main__":
 
                     for model_name, nf_model in mixed_mp.models.items():
                         row = {}
-
-                        if args.finetune:
-                            nf_model = heldout_mp.finetune(
-                                model_name,
-                                nf_model,
-                                dataset_source=target_ds,
-                                dataset_group_source=target_grp,
-                            )
 
                         evaluation_pipeline_forts_forecast(
                             dataset=target_ds,

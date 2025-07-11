@@ -70,6 +70,23 @@ def evaluation_pipeline_forts_forecast(
         )
         return
 
+    if finetune:
+        # Check if target dataset is large enough for fine-tuning
+        if window_size < 2 * window_size_source:
+            print(
+                f"Skipping fine-tuning for {model_name} on {dataset}/{dataset_group} "
+                f"from {dataset_source}/{dataset_group_source}: "
+                f"Target horizon ({window_size}) is too small for source horizon ({window_size_source})."
+            )
+            return
+
+        model = pipeline.finetune(
+            model_name,
+            model,
+            dataset_source=dataset,
+            dataset_group_source=dataset_group,
+        )
+
     print(f"\n\n=== {dataset} {dataset_group} Forecast Evaluation ===\n")
     print(f"Forecast horizon = {horizon}, freq = {freq}, mode = {mode}\n")
 

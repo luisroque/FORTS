@@ -10,7 +10,7 @@ exclude =
     dist,
     migrations,
     settings.py
-    
+
 # Ignored error codes:
 #
 # Style and whitespace:
@@ -53,4 +53,4 @@ ignore =
     D401,
     D103,
     F541,
-    F841 
+    F841
