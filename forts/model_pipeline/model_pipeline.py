@@ -1,21 +1,19 @@
 import os
-import numpy as np
-from typing import Tuple, Union
-import pandas as pd
-from ray import tune
-from neuralforecast.auto import (
-    AutoNHITS,
-    AutoKAN,
-    AutoPatchTST,
-    AutoiTransformer,
-    AutoTSMixer,
-    AutoTFT,
-)
-from forts.visualization.model_visualization import (
-    plot_generated_vs_original,
-)
-from forts.model_pipeline.core.core_extension import CustomNeuralForecast
+from typing import Union
 
+import pandas as pd
+from neuralforecast.auto import (
+    AutoiTransformer,
+    AutoKAN,
+    AutoNHITS,
+    AutoPatchTST,
+    AutoTFT,
+    AutoTSMixer,
+)
+from ray import tune
+
+from forts.model_pipeline.core.core_extension import CustomNeuralForecast
+from forts.visualization.model_visualization import plot_generated_vs_original
 
 AutoModelType = Union[
     AutoNHITS,
@@ -112,7 +110,8 @@ class ModelPipeline(_ModelListMixin):
     ):
         """
         Trains and hyper-tunes all six models.
-        Each data_pipeline does internal time-series cross-validation to select its best hyperparameters.
+        Each data_pipeline does internal time-series cross-validation to select
+        its best hyperparameters.
         """
         original_mode = mode
         valid_modes = {
@@ -123,7 +122,8 @@ class ModelPipeline(_ModelListMixin):
         }
         if mode not in valid_modes:
             raise ValueError(
-                f"Unsupported mode: '{mode}'. Supported modes are: {sorted(valid_modes)}."
+                f"Unsupported mode: '{mode}'. Supported modes are: "
+                f"{sorted(valid_modes)}."
             )
         mode = "out_domain" if mode in ("out_domain", "out_domain_coreset") else mode
 
@@ -181,7 +181,8 @@ class ModelPipeline(_ModelListMixin):
 
             if os.path.exists(nf_save_path):
                 print(
-                    f"Found saved data_pipeline for {name}. Reinitializing wrapper and loading weights..."
+                    f"Found saved data_pipeline for {name}. "
+                    "Reinitializing wrapper and loading weights..."
                 )
 
                 auto_model = ModelClass(**init_kwargs)
@@ -223,7 +224,7 @@ class ModelPipeline(_ModelListMixin):
         """
         target_train_df = self.trainval_long
         if target_train_df.empty:
-            print(f"[Fine-tuning SKIP] No training data available for {model_name}.")
+            print(f"[Fine-tuning SKIP] No training data for {model_name}.")
             return nf_model
 
         print(f"\n=== Fine-tuning {model_name} for 10 epochs... ===")
@@ -251,7 +252,9 @@ class ModelPipeline(_ModelListMixin):
             f"{dataset_source}_{dataset_group_source}_{model_name}_neuralforecast",
         )
         finetune_nf.save(path=nf_save_path, overwrite=True, save_dataset=False)
-        print(f"Saved fine-tuned {model_name} NeuralForecast object to {nf_save_path}")
+        print(
+            f"Saved fine-tuned {model_name} " f"NeuralForecast object to {nf_save_path}"
+        )
 
         print(f"✓ Fine-tuning complete for {model_name}.")
         return finetune_nf
@@ -351,7 +354,7 @@ class ModelPipeline(_ModelListMixin):
                 # no series has enough context, so nothing to predict
                 print(
                     f"[SKIP] '{dataset_source or dataset_target}' – "
-                    f"no series meets the context requirement "
+                    "no series meets the context requirement "
                     f"(window = {window_size_source or window_size})."
                 )
                 return pd.DataFrame()
@@ -380,7 +383,8 @@ class ModelPipeline(_ModelListMixin):
             df_y = self.original_long_basic_forecast
         else:
             raise ValueError(
-                f"Unsupported mode: '{mode}'. Supported modes are: 'in_domain', 'out_domain', 'basic_forecasting'."
+                f"Unsupported mode: '{mode}'. Supported modes are: "
+                "'in_domain', 'out_domain', 'basic_forecasting'."
             )
 
         df_y_hat.rename(columns={model_name: "y"}, inplace=True)
@@ -392,7 +396,8 @@ class ModelPipeline(_ModelListMixin):
 
         suffix_name = f"{model_name}-last-window-one-pass_{mode}_{dataset_desc}"
         title = (
-            f"{model_name} • Last-window one-pass ({mode.replace('_', ' ')}) — "
+            f"{model_name} • Last-window one-pass "
+            f"({mode.replace('_', ' ')}) — "
             f"{dataset_name_for_title} [{dataset_group_for_title}]"
         )
 

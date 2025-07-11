@@ -1,7 +1,8 @@
 import os
+from datetime import datetime
+
 import matplotlib.pyplot as plt
 import pandas as pd
-from datetime import datetime
 
 
 def plot_loss(history_dict):

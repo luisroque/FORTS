@@ -1,0 +1,56 @@
+[flake8]
+# No line length restriction
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    env,
+    build,
+    dist,
+    migrations,
+    settings.py
+    
+# Ignored error codes:
+#
+# Style and whitespace:
+# E203: Whitespace before ':'
+# W503: Line break before binary operator
+# W293: Blank line contains whitespace
+# W291: Trailing whitespace
+# E128: Continuation line under-indented for visual indent
+# E501: Line too long
+#
+# Docstring formatting:
+# D200: One-line docstring should fit on one line with quotes
+# D205: 1 blank line required between summary line and description
+# D400: First line should end with a period
+# D401: First line should be in imperative mood
+# D103: Missing docstring in public function
+#
+# f-string and variables:
+# F541: f-string is missing placeholders
+# F841: Local variable is assigned to but never used
+ignore =
+    D100,
+    D101,
+    D102,
+    D103,
+    D104,
+    D105,
+    D106,
+    D107,
+    D202,
+    E203,
+    W503,
+    W293,
+    W291,
+    E128,
+    E501,
+    D200,
+    D205,
+    D400,
+    D401,
+    D103,
+    F541,
+    F841 

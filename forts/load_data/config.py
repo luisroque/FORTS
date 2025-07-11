@@ -1,19 +1,18 @@
-from forts.load_data.m1 import M1Dataset
-from forts.load_data.m4 import M4Dataset
-from forts.load_data.m3 import M3Dataset
-from forts.load_data.tourism import TourismDataset
-from forts.load_data.m5 import M5Dataset
-from forts.load_data.labour import LabourDataset
-from forts.load_data.traffic import TrafficDataset
-from forts.load_data.wiki2 import Wiki2Dataset
+from forts.load_data.ecl import ECLDataset
 from forts.load_data.etth1 import ETTh1Dataset
 from forts.load_data.etth2 import ETTh2Dataset
 from forts.load_data.ettm1 import ETTm1Dataset
 from forts.load_data.ettm2 import ETTm2Dataset
-from forts.load_data.ecl import ECLDataset
+from forts.load_data.labour import LabourDataset
+from forts.load_data.m1 import M1Dataset
+from forts.load_data.m3 import M3Dataset
+from forts.load_data.m4 import M4Dataset
+from forts.load_data.m5 import M5Dataset
+from forts.load_data.tourism import TourismDataset
+from forts.load_data.traffic import TrafficDataset
 from forts.load_data.trafficl import TrafficLDataset
 from forts.load_data.weather import WeatherDataset
-
+from forts.load_data.wiki2 import Wiki2Dataset
 
 DATASETS = {
     "Tourism": TourismDataset,

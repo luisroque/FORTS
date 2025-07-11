@@ -1,13 +1,15 @@
 import os
+
 import pandas as pd
 from neuralforecast.auto import (
-    AutoNHITS,
-    AutoTFT,
-    AutoPatchTST,
-    AutoTSMixer,
     AutoiTransformer,
     AutoKAN,
+    AutoNHITS,
+    AutoPatchTST,
+    AutoTFT,
+    AutoTSMixer,
 )
+
 from forts.model_pipeline.core.core_extension import CustomNeuralForecast
 
 BASE_DIR = "assets/model_weights_out_domain/hypertuning"
@@ -44,7 +46,7 @@ def main():
                     # dummy init for loading
                     try:
                         auto_model = ModelClass(h=1, num_samples=1, config={})
-                    except:
+                    except Exception:
                         auto_model = ModelClass(
                             h=1, num_samples=1, config={}, n_series=1
                         )

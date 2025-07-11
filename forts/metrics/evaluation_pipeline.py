@@ -1,13 +1,11 @@
-import os
 import json
-import numpy as np
-import pandas as pd
-from typing import Dict
+import os
 
-from neuralforecast.losses.numpy import smape, mase, mae, rmse
-from forts.model_pipeline.model_pipeline import ModelPipeline
+import numpy as np
+
+from forts.metrics.evaluation_metrics import mae, mase, rmse, rmsse, smape
 from forts.model_pipeline.core.core_extension import CustomNeuralForecast
-from forts.metrics.evaluation_metrics import smape, mase, mae, rmse, rmsse
+from forts.model_pipeline.model_pipeline import ModelPipeline
 
 
 def evaluation_pipeline_forts_forecast(
@@ -48,12 +46,14 @@ def evaluation_pipeline_forts_forecast(
         if finetune:
             results_file = os.path.join(
                 results_folder,
-                f"{dataset}_{dataset_group}_{model_name}_{horizon}_trained_on_{dataset_source}_{dataset_group_source}_finetuning.json",
+                f"{dataset}_{dataset_group}_{model_name}_{horizon}_"
+                f"trained_on_{dataset_source}_{dataset_group_source}_finetuning.json",
             )
         else:
             results_file = os.path.join(
                 results_folder,
-                f"{dataset}_{dataset_group}_{model_name}_{horizon}_trained_on_{dataset_source}_{dataset_group_source}.json",
+                f"{dataset}_{dataset_group}_{model_name}_{horizon}_"
+                f"trained_on_{dataset_source}_{dataset_group_source}.json",
             )
     else:
         results_file = os.path.join(
@@ -104,7 +104,8 @@ def evaluation_pipeline_forts_forecast(
         ).copy()
         if forecast_horizon.empty:
             print(
-                f"[Last Window ({mode})] No valid y,y_true pairs. Can't compute sMAPE."
+                f"[Last Window ({mode})] No valid y,y_true pairs. "
+                "Can't compute sMAPE."
             )
             row_forecast[f"Forecast SMAPE (last window) Per Series_{mode}"] = None
         else:

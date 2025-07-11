@@ -1,5 +1,4 @@
 import numpy as np
-import os
 
 
 def smape(y_true, y_pred):

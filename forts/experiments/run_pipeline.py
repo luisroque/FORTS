@@ -1,20 +1,16 @@
 import os
-from forts.experiments.helper import (
-    cmd_parser,
-)
 
 import pandas as pd
+
 from forts.data_pipeline.data_pipeline_setup import DataPipeline, build_mixed_trainval
-from forts.metrics.evaluation_pipeline import (
-    evaluation_pipeline_forts_forecast,
-)
-from forts.model_pipeline.model_pipeline import ModelPipeline, ModelPipelineCoreset
 from forts.experiments.helper import (
+    cmd_parser,
     extract_frequency,
     extract_horizon,
     set_device,
 )
-
+from forts.metrics.evaluation_pipeline import evaluation_pipeline_forts_forecast
+from forts.model_pipeline.model_pipeline import ModelPipeline, ModelPipelineCoreset
 
 DATASET_GROUP_FREQ = {
     "Tourism": {
@@ -133,12 +129,20 @@ if __name__ == "__main__":
                             row_forecast_tl = {}
 
                             if args.finetune:
-                                model = model_pipeline.finetune(
-                                    model_name,
-                                    model,
-                                    dataset_source=DATASET,
-                                    dataset_group_source=DATASET_GROUP,
-                                )
+                                # Check if target dataset is large enough for fine-tuning
+                                if H < 2 * H_TL:
+                                    print(
+                                        f"Skipping fine-tuning for {model_name} on {DATASET}/{DATASET_GROUP} "
+                                        f"from {DATASET_TL}/{DATASET_GROUP_TL}: "
+                                        f"Target horizon ({H}) is too small for source horizon ({H_TL})."
+                                    )
+                                else:
+                                    model = model_pipeline.finetune(
+                                        model_name,
+                                        model,
+                                        dataset_source=DATASET,
+                                        dataset_group_source=DATASET_GROUP,
+                                    )
 
                             evaluation_pipeline_forts_forecast(
                                 dataset=DATASET,
@@ -300,4 +304,6 @@ if __name__ == "__main__":
     os.makedirs("assets/results_forecast", exist_ok=True)
     df_results.to_csv("assets/results_forecast/final_results.csv", index=False)
 
-    print("Final forecast results saved to assets/results_forecast/final_results.csv")
+    print(
+        "Final forecast results saved to " "assets/results_forecast/final_results.csv"
+    )

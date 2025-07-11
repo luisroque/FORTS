@@ -1,9 +1,11 @@
 import os
-import pandas as pd
-import numpy as np
-import requests
 import zipfile
 from io import BytesIO
+
+import numpy as np
+import pandas as pd
+import requests
+
 from forts.load_data.base import LoadDataset
 
 
@@ -27,7 +29,9 @@ class TourismDataset(LoadDataset):
             os.makedirs(cls.DATASET_PATH)
 
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/91.0.4472.124 Safari/537.36"
         }
 
         print(f"Downloading dataset from {cls.DATA_URL}...")

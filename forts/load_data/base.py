@@ -56,7 +56,7 @@ class LoadDataset:
     @staticmethod
     def prune_df_by_size(df: pd.DataFrame, min_n_instances: int):
         large_ts = df["unique_id"].value_counts() >= min_n_instances
-        large_ts_uid = large_ts[large_ts].index.tolist()
+        large_ts[large_ts].index.tolist()
 
         df = df.query("unique_id in @large_ts_uid").reset_index(drop=True)
 

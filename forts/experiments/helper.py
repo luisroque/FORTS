@@ -1,5 +1,5 @@
-import os
 import argparse
+import os
 
 
 def extract_frequency(dataset_group):
@@ -54,7 +54,8 @@ def cmd_parser():
     parser.add_argument(
         "--coreset",
         action="store_true",
-        help="Perform transfer learning with coreset dataset and a leave-one-out strategy.",
+        help="Perform transfer learning with coreset dataset "
+        "and a leave-one-out strategy.",
     )
     parser.add_argument(
         "--basic-forecasting",

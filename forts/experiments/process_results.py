@@ -1,11 +1,9 @@
-import os
 import json
 from pathlib import Path
 from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
-
 
 BASE_OUT_DOMAIN = Path("assets/results_forecast_out_domain")
 BASE_IN_DOMAIN = Path("assets/results_forecast_in_domain")
@@ -89,7 +87,8 @@ def apply_fm_results(base_df: pd.DataFrame, path_fm: Union[str, Path]) -> pd.Dat
 
     fm_df["Dataset Source"] = "MIXED"
     fm_df["Dataset Group Source"] = fm_df.apply(
-        lambda x: f"ALL_BUT_{x['Dataset Target']}_{x['Dataset Group Target']}", axis=1
+        lambda x: f"ALL_BUT_{x['Dataset Target']}_{x['Dataset Group Target']}",
+        axis=1,
     )
     fm_df = fm_df[required_columns]
 
@@ -224,7 +223,10 @@ def main():
                 "Method",
             ],
             out_path=SUMMARY_DIR,
-            fname=f"results_all_seasonalities_all_combinations_{metric_store}{suffix}.csv",
+            fname=(
+                "results_all_seasonalities_all_combinations_"
+                f"{metric_store}{suffix}.csv"
+            ),
         )
         summarize_metric(
             df,
@@ -233,7 +235,10 @@ def main():
             aggregate_by=["Method"],
             rank_within=["Source-Target Pair"],
             out_path=SUMMARY_DIR,
-            fname=f"results_ranks_all_seasonalities_by_method_{metric_store}{suffix}.csv",
+            fname=(
+                "results_ranks_all_seasonalities_by_method_"
+                f"{metric_store}{suffix}.csv"
+            ),
         )
         summarize_metric(
             df,

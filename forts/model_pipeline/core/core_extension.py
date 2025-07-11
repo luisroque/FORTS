@@ -1,24 +1,24 @@
-import fsspec
-import pickle
-from typing import List, Union, Optional
-import pandas as pd
-import numpy as np
+import pickle  # nosec B403
 import warnings
+from typing import List, Optional, Union
 
+import fsspec
+import numpy as np
+import pandas as pd
 from neuralforecast import NeuralForecast
 from neuralforecast import core as nf_core
 from neuralforecast.core import (
-    validate_freq,
     DataFrame,
-    SparkDataFrame,
-    pl_DataFrame,
-    ufp,
+    DistributedConfig,
     LocalFilesTimeSeriesDataset,
+    PredictionIntervals,
+    Sequence,
+    SparkDataFrame,
     _FilesDataset,
     get_prediction_interval_method,
-    PredictionIntervals,
-    DistributedConfig,
-    Sequence,
+    pl_DataFrame,
+    ufp,
+    validate_freq,
 )
 
 
@@ -52,7 +52,7 @@ class CustomNeuralForecast(NeuralForecast):
 
         try:
             with fsspec.open(f"{path}/alias_to_model.pkl", "rb") as f:
-                alias_to_model = pickle.load(f)
+                alias_to_model = pickle.load(f)  # nosec B301
         except FileNotFoundError:
             alias_to_model = {}
 
@@ -65,10 +65,10 @@ class CustomNeuralForecast(NeuralForecast):
                 cls_ = nf_core.MODEL_FILENAME_DICT[model_class_name.lower()]
             else:
                 raise ValueError(
-                    f"Could not find model_class_name='{model_class_name}' in Nixtla's "
-                    "core models or in custom_model_dict. "
-                    f"Ensure you have spelled '{model_class_name}' correctly or "
-                    "provided it in custom_model_dict."
+                    f"Could not find model_class_name='{model_class_name}' in "
+                    f"Nixtla's core models or in custom_model_dict. Ensure you "
+                    f"have spelled '{model_class_name}' correctly or provided "
+                    f"it in custom_model_dict."
                 )
 
             # load the actual checkpoint file
@@ -84,7 +84,7 @@ class CustomNeuralForecast(NeuralForecast):
             print(10 * "-" + " Loading dataset " + 10 * "-")
         try:
             with fsspec.open(f"{path}/dataset.pkl", "rb") as f:
-                dataset = pickle.load(f)
+                dataset = pickle.load(f)  # nosec B301
             if verbose:
                 print("Dataset loaded.")
         except FileNotFoundError:
@@ -95,12 +95,13 @@ class CustomNeuralForecast(NeuralForecast):
             print(10 * "-" + " Loading configuration " + 10 * "-")
         try:
             with fsspec.open(f"{path}/configuration.pkl", "rb") as f:
-                config_dict = pickle.load(f)
+                config_dict = pickle.load(f)  # nosec B301
             if verbose:
                 print("Configuration loaded.")
         except FileNotFoundError:
             raise FileNotFoundError(
-                "No configuration.pkl file found in directory. Cannot restore metadata."
+                "No configuration.pkl file found in directory. "
+                "Cannot restore metadata."
             )
 
         freq = config_dict.get("freq", "D")
@@ -212,7 +213,8 @@ class CustomNeuralForecast(NeuralForecast):
         elif isinstance(df, SparkDataFrame):
             if static_df is not None and not isinstance(static_df, SparkDataFrame):
                 raise ValueError(
-                    "`static_df` must be a spark dataframe when `df` is a spark dataframe."
+                    "`static_df` must be a spark dataframe when `df` is a spark "
+                    "dataframe."
                 )
             self.dataset = self._prepare_fit_distributed(
                 df=df,
@@ -253,7 +255,8 @@ class CustomNeuralForecast(NeuralForecast):
                 print("Using stored dataset.")
         else:
             raise ValueError(
-                f"`df` must be a pandas, polars or spark DataFrame, or a list of parquet files containing the series, or `None`, got: {type(df)}"
+                "`df` must be a pandas, polars or spark DataFrame, or a list of "
+                f"parquet files containing the series, or `None`, got: {type(df)}"
             )
 
         if val_size is not None:
@@ -268,7 +271,9 @@ class CustomNeuralForecast(NeuralForecast):
 
         for i, model in enumerate(self.models):
             self.models[i] = model.fit(
-                self.dataset, val_size=val_size, distributed_config=distributed_config
+                self.dataset,
+                val_size=val_size,
+                distributed_config=distributed_config,
             )
 
         self._fitted = True
@@ -322,8 +327,9 @@ class CustomNeuralForecast(NeuralForecast):
         if needed_futr_exog:
             if futr_df is None:
                 raise ValueError(
-                    f"Models require the following future exogenous features: {needed_futr_exog}. "
-                    "Please provide them through the `futr_df` argument."
+                    "Models require the following future exogenous features: "
+                    f"{needed_futr_exog}. Please provide them through the "
+                    "`futr_df` argument."
                 )
             else:
                 missing = needed_futr_exog - set(futr_df.columns)
@@ -348,7 +354,9 @@ class CustomNeuralForecast(NeuralForecast):
 
         if is_dataset_local_files and df is None:
             raise ValueError(
-                "When the model has been trained on a dataset that is split between multiple files, you must pass in a specific dataframe for prediciton."
+                "When the model has been trained on a dataset that is split "
+                "between multiple files, you must pass in a specific "
+                "dataframe for prediciton."
             )
 
         # Process new dataset but does not store it.
@@ -390,14 +398,14 @@ class CustomNeuralForecast(NeuralForecast):
             if futr_df.shape[0] < fcsts_df.shape[0]:
                 if df is None:
                     expected_cmd = "make_future_dataframe()"
-                    missing_cmd = "get_missing_future(futr_df)"
                 else:
                     expected_cmd = "make_future_dataframe(df)"
-                    missing_cmd = "get_missing_future(futr_df, df)"
                 raise ValueError(
-                    "There are missing combinations of ids and times in `futr_df`.\n"
-                    f"You can run the `{expected_cmd}` method to get the expected combinations or "
-                    f"the `{missing_cmd}` method to get the missing combinations."
+                    "There are missing combinations of ids and times in "
+                    "`futr_df`.\n"
+                    f"You can run the `{expected_cmd}` method to get the "
+                    "expected combinations or the `{missing_cmd}` method to get "
+                    "the missing combinations."
                 )
             if futr_orig_rows > futr_df.shape[0]:
                 dropped_rows = futr_orig_rows - futr_df.shape[0]

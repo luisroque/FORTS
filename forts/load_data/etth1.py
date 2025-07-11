@@ -1,9 +1,7 @@
-import os
 import pandas as pd
 from datasetsforecast.long_horizon import LongHorizon
 
 from forts.load_data.base import LoadDataset
-import numpy as np
 
 
 class ETTh1Dataset(LoadDataset):

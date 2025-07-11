@@ -1,12 +1,13 @@
+import json
 import os
+from pathlib import Path
+from typing import Dict, List, Tuple
+
+import joblib
 import numpy as np
 import pandas as pd
-from typing import List, Tuple, Dict
-from pathlib import Path
-from typing import Dict, Tuple
-import joblib
-import json
 from pandas.api.types import CategoricalDtype
+
 from forts.load_data.config import DATASETS
 
 
@@ -36,7 +37,8 @@ def build_mixed_trainval(pipelines, dataset_source, dataset_group):
 
 class DataPipeline:
     """
-    Class for creating transformed versions of the dataset using a Conditional Variational Autoencoder (CVAE).
+    Class for creating transformed versions of the dataset using a Conditional
+    Variational Autoencoder (CVAE).
     """
 
     def __init__(
@@ -81,7 +83,10 @@ class DataPipeline:
         print(f"   - Average number of time points per series: {avg_time_points:.2f}")
 
         self.features_input = (None, None, None)
-        self.split_path = f"assets/model_weights/data_split/{dataset_name}_{dataset_group}_data_split.json"
+        self.split_path = (
+            f"assets/model_weights/data_split/{dataset_name}_{dataset_group}"
+            "_data_split.json"
+        )
         self.unique_ids = np.sort(self.df["unique_id"].unique())
 
         # map each frequency string to (index_function, period)
@@ -246,7 +251,7 @@ class DataPipeline:
     @staticmethod
     def _skip_short_series(df_long: pd.DataFrame, min_length: int) -> pd.DataFrame:
         """
-        keep only the series that have >= min_length points.
+        Keep only the series that have >= min_length points.
         """
         lengths = df_long.groupby("unique_id")["ds"].count()
 
@@ -259,7 +264,8 @@ class DataPipeline:
         self, train_test_split=0.7, val_split=0.15
     ) -> Dict[str, pd.DataFrame]:
         """
-        Apply preprocessing to raw time series, split into training, validation, and testing,
+        Apply preprocessing to raw time series, split into training, validation,
+        and testing,
         """
         cache_dir = Path("assets/processed_datasets")
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -284,7 +290,11 @@ class DataPipeline:
         self.unique_ids_original = sorted(original_long["unique_id"].unique())
 
         # splitting into train, validation, and test sets
-        self.train_ids, self.val_ids, self.test_ids = self._load_or_create_split(
+        (
+            self.train_ids,
+            self.val_ids,
+            self.test_ids,
+        ) = self._load_or_create_split(
             train_test_split=train_test_split, val_split=val_split
         )
         self.train_ids.sort()
@@ -293,21 +303,21 @@ class DataPipeline:
         self.s_train = len(self.train_ids)
         self.s_val = len(self.val_ids)
 
-        ### TRAINING DATA ###
+        # TRAINING DATA
         train_long = original_long[original_long["unique_id"].isin(self.train_ids)]
         train_long = self._skip_short_series(train_long, min_length)
 
         self.ds_train = pd.DatetimeIndex(train_long["ds"].unique()).sort_values()
         self.unique_ids_train = sorted(train_long["unique_id"].unique())
 
-        ### VALIDATION DATA ###
+        # VALIDATION DATA
         val_long = original_long[original_long["unique_id"].isin(self.val_ids)]
         val_long = self._skip_short_series(val_long, min_length)
 
         self.ds_val = pd.DatetimeIndex(val_long["ds"].unique()).sort_values()
         self.unique_ids_val = sorted(val_long["unique_id"].unique())
 
-        ### TRAIN + VALIDATION DATA ###
+        # TRAIN + VALIDATION DATA
         trainval_ids = self.train_ids + self.val_ids
 
         trainval_long = original_long[original_long["unique_id"].isin(trainval_ids)]
@@ -316,7 +326,7 @@ class DataPipeline:
         self.ds_trainval = pd.DatetimeIndex(trainval_long["ds"].unique()).sort_values()
         self.unique_ids_trainval = sorted(trainval_long["unique_id"].unique())
 
-        ### TESTING DATA ###
+        # TESTING DATA
         test_long = original_long[original_long["unique_id"].isin(self.test_ids)]
         test_long = self._skip_short_series(test_long, min_length)
 

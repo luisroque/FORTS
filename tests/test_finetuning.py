@@ -1,16 +1,17 @@
+import os
 import sys
 from pathlib import Path
+
 import pytest
-import os
+from neuralforecast.auto import AutoNHITS
+
+from forts.data_pipeline.data_pipeline_setup import DataPipeline
+from forts.metrics.evaluation_pipeline import evaluation_pipeline_forts_forecast
+from forts.model_pipeline.model_pipeline import ModelPipeline
 
 # Add the project root to the Python path
 project_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(project_root))
-
-from forts.data_pipeline.data_pipeline_setup import DataPipeline
-from forts.model_pipeline.model_pipeline import ModelPipeline
-from forts.metrics.evaluation_pipeline import evaluation_pipeline_forts_forecast
-from neuralforecast.auto import AutoNHITS
 
 
 class TestModelPipeline(ModelPipeline):
@@ -70,7 +71,10 @@ def test_finetuning(setup_finetune_pipelines):
 
     row_forecast = {}
 
-    results_file = f"assets/results_forecast_fine_tuning/Tourism_Monthly_{model_name}_12_trained_on_Labour_Monthly.json"
+    results_file = (
+        f"assets/test_results/Tourism_Monthly_{model_name}_12_trained_on_"
+        f"Labour_Monthly_finetuning.json"
+    )
     if os.path.exists(results_file):
         os.remove(results_file)
 

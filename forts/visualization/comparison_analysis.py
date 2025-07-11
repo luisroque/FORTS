@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
-import seaborn as sns
 import numpy as np
+import seaborn as sns
 
 
 def plot_series_comparisons(X_orig, X_forts, X_benchmark, n_examples=4):
@@ -31,7 +31,11 @@ def plot_series_comparisons(X_orig, X_forts, X_benchmark, n_examples=4):
     for i in range(n_examples):
         # L-GTA generated vs original
         axes[i, 0].plot(
-            X_orig[:, i], color=colors[0], label="Original", linewidth=2, alpha=0.75
+            X_orig[:, i],
+            color=colors[0],
+            label="Original",
+            linewidth=2,
+            alpha=0.75,
         )
         axes[i, 0].plot(
             X_forts[:, i],
@@ -46,7 +50,11 @@ def plot_series_comparisons(X_orig, X_forts, X_benchmark, n_examples=4):
 
         # Benchmark generated vs original
         axes[i, 1].plot(
-            X_orig[:, i], color=colors[0], label="Original", linewidth=2, alpha=0.75
+            X_orig[:, i],
+            color=colors[0],
+            label="Original",
+            linewidth=2,
+            alpha=0.75,
         )
         axes[i, 1].plot(
             X_benchmark[:, i],
@@ -73,12 +81,15 @@ def plot_series_comparisons(X_orig, X_forts, X_benchmark, n_examples=4):
 
 def plot_transformations_comparison(transformed_datasets, X_orig, series):
     """
-    Plots comparisons between original data and transformed datasets across different transformations and their intensity levels.
+    Plots comparisons between original data and transformed datasets.
 
     Parameters:
-    - transformed_datasets: numpy.ndarray, transformed datasets with dimensions (4, 6, 10, n_samples, n_features).
-    - X_orig: numpy.ndarray, original dataset with dimensions (n_samples, n_features).
-    - sample_index: int, index of the sample to display from the transformed datasets.
+    - transformed_datasets: numpy.ndarray, transformed datasets with dimensions
+    (4, 6, 10, n_samples, n_features).
+    - X_orig: numpy.ndarray, original dataset with dimensions
+    (n_samples, n_features).
+    - sample_index: int, index of the sample to display from the
+    transformed datasets.
     - n_features: int, index of the feature to plot from the datasets.
     """
     transformations = ["Jitter", "Scaling", "Magnitude Warp", "Time Warp"]
@@ -93,7 +104,10 @@ def plot_transformations_comparison(transformed_datasets, X_orig, series):
             transformed_sample = transformed_datasets[i, j, 0, :, series]
             ax.plot(transformed_sample, label=f"Transformed - {level}")
             ax.plot(
-                X_orig[:, series], alpha=0.55, label="Original Data", color="orange"
+                X_orig[:, series],
+                alpha=0.55,
+                label="Original Data",
+                color="orange",
             )
             ax.legend(loc="upper right")
 
@@ -113,7 +127,7 @@ def plot_long_tail_comparisons(
     X_orig, X_transf_1, X_transf_2, label_transf_1, label_transf_2, distances, top_n=3
 ):
     """
-    Plots the top N series in the long tail of the distribution comparing original with two transformed datasets.
+    Plots the top N series in the long tail of the distribution.
 
     Parameters:
     - X_orig: numpy.ndarray, original dataset.
@@ -144,10 +158,14 @@ def plot_long_tail_comparisons(
 
     for i, idx in enumerate(long_tail_indices):
         y_min = min(
-            np.min(X_orig[idx]), np.min(X_transf_1[idx]), np.min(X_transf_2[idx])
+            np.min(X_orig[idx]),
+            np.min(X_transf_1[idx]),
+            np.min(X_transf_2[idx]),
         )
         y_max = max(
-            np.max(X_orig[idx]), np.max(X_transf_1[idx]), np.max(X_transf_2[idx])
+            np.max(X_orig[idx]),
+            np.max(X_transf_1[idx]),
+            np.max(X_transf_2[idx]),
         )
 
         # Original series
@@ -157,7 +175,10 @@ def plot_long_tail_comparisons(
 
         # First transformed series
         axes[i, 1].plot(
-            X_transf_1[idx], color=colors[1], label=label_transf_1, linewidth=2
+            X_transf_1[idx],
+            color=colors[1],
+            label=label_transf_1,
+            linewidth=2,
         )
         axes[i, 1].set_title(f"{label_transf_1} Series Index: {idx}")
         axes[i, 1].set_ylim(y_min, y_max)
@@ -165,7 +186,10 @@ def plot_long_tail_comparisons(
 
         # Second transformed series
         axes[i, 2].plot(
-            X_transf_2[idx], color=colors[2], label=label_transf_2, linewidth=2
+            X_transf_2[idx],
+            color=colors[2],
+            label=label_transf_2,
+            linewidth=2,
         )
         axes[i, 2].set_title(f"{label_transf_2} Series Index: {idx}")
         axes[i, 2].set_ylim(y_min, y_max)
@@ -201,13 +225,14 @@ def plot_transformations_with_generate_datasets(
     num_series,
 ):
     """
-    Plots transformations for multiple series, ensuring L-GTA and benchmark columns for each transformation share y-limits.
+    Plots transformations for multiple series.
 
     Parameters:
-    - generate_datasets: Function to generate datasets with applied transformations.
+    - generate_datasets: Function to generate datasets.
     - X_orig: Original series data before any transformations.
-    - data_pipeline, z, dynamic_feat, static_feat: Parameters for the data generation data_pipeline.
-    - create_dataset_vae: Object containing dataset and VAE data_pipeline information.
+    - data_pipeline, z, dynamic_feat, static_feat: Parameters for the
+    data generation data_pipeline.
+    - create_dataset_vae: Object containing dataset and VAE data_pipeline info.
     - transformations: List of dictionaries with transformation details.
     - num_series: Number of time series to plot.
     """
@@ -240,7 +265,7 @@ def plot_transformations_with_generate_datasets(
             col_forts = idx_t * 2
             col_benchmark = idx_t * 2 + 1
 
-            # Find global min and max across both transformations for consistent y-limits
+            # Find global min and max for consistent y-limits
             global_min = min(
                 X_orig_plot[:, idx_s].min(),
                 X_hat_transf[:, idx_s].min(),
@@ -254,10 +279,16 @@ def plot_transformations_with_generate_datasets(
 
             # Plotting L-GTA Transformation
             axs[idx_s, col_forts].plot(
-                X_orig_plot[:, idx_s], label="Original", color="gray", linestyle="--"
+                X_orig_plot[:, idx_s],
+                label="Original",
+                color="gray",
+                linestyle="--",
             )
             axs[idx_s, col_forts].plot(
-                X_hat_transf[:, idx_s], label="L-GTA", color="darkorange", alpha=0.75
+                X_hat_transf[:, idx_s],
+                label="L-GTA",
+                color="darkorange",
+                alpha=0.75,
             )
             axs[idx_s, col_forts].set_ylim(global_min, global_max)
             axs[idx_s, col_forts].legend()
@@ -265,10 +296,16 @@ def plot_transformations_with_generate_datasets(
 
             # Plotting Benchmark Transformation
             axs[idx_s, col_benchmark].plot(
-                X_orig_plot[:, idx_s], label="Original", color="gray", linestyle="--"
+                X_orig_plot[:, idx_s],
+                label="Original",
+                color="gray",
+                linestyle="--",
             )
             axs[idx_s, col_benchmark].plot(
-                X_benchmark[:, idx_s], label="Benchmark", color="dodgerblue", alpha=0.55
+                X_benchmark[:, idx_s],
+                label="Benchmark",
+                color="dodgerblue",
+                alpha=0.55,
             )
             axs[idx_s, col_benchmark].set_ylim(global_min, global_max)
             axs[idx_s, col_benchmark].legend()

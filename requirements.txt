@@ -8,4 +8,3 @@ neuralforecast==2.0.0
 gluonts==0.15.1
 pytest==8.4.1
 orjson==3.10.18
-
