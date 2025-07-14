@@ -181,6 +181,7 @@ def load_raw_results(mode):
 def main():
     grid = get_experiment_grid()
     grid["MASE Mean"] = pd.NA
+    grid["Num Results"] = 0
 
     # Load results
     basic_results = load_raw_results("basic_forecasting")
@@ -251,8 +252,9 @@ def main():
             )
             result_row = df[mask]
             if not result_row.empty:
-                mase_value = result_row["MASE Mean"].iloc[0]
+                mase_value = result_row["MASE Mean"].mean()
                 grid.loc[idx, "MASE Mean"] = mase_value
+                grid.loc[idx, "Num Results"] = result_row["MASE Mean"].count()
 
     with pd.option_context(
         "display.max_rows", None, "display.max_columns", None, "display.width", 200
@@ -276,9 +278,9 @@ def main():
                     inplace=True,
                 )
                 print(
-                    df_slice[["Dataset", "Group", "Method", "MASE Mean"]].to_string(
-                        index=False
-                    )
+                    df_slice[
+                        ["Dataset", "Group", "Method", "MASE Mean", "Num Results"]
+                    ].to_string(index=False)
                 )
             elif exp_type == "out_domain":
                 df_slice.rename(
@@ -292,8 +294,8 @@ def main():
                 summary_df = (
                     df_slice.groupby(
                         ["Source Dataset", "Source Group", "Method", "finetuned"]
-                    )["MASE Mean"]
-                    .mean()
+                    )[["MASE Mean", "Num Results"]]
+                    .agg({"MASE Mean": "mean", "Num Results": "sum"})
                     .reset_index()
                 )
                 print(summary_df.to_string(index=False))
@@ -315,10 +317,27 @@ def main():
                             "Method",
                             "finetuned",
                             "MASE Mean",
+                            "Num Results",
                         ]
                     ].to_string(index=False)
                 )
             print("\n" + "=" * 50 + "\n")
+
+    print("--- Overall Experiment Progress ---")
+    grid["Completed"] = grid["Num Results"] > 0
+    progress_summary = (
+        grid.groupby(["type", "finetuned"])
+        .agg(Completed=("Completed", "sum"), Total=("Completed", "size"))
+        .reset_index()
+    )
+    progress_summary["Progress"] = (
+        progress_summary["Completed"] / progress_summary["Total"] * 100
+    ).map("{:.2f}%".format)
+    progress_summary.rename(
+        columns={"type": "Experiment Type", "finetuned": "Finetuned"},
+        inplace=True,
+    )
+    print(progress_summary.to_string(index=False))
 
 
 if __name__ == "__main__":
