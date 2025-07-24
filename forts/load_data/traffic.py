@@ -6,6 +6,7 @@ from forts.load_data.base import LoadDataset
 
 class TrafficDataset(LoadDataset):
     DATASET_NAME = "Traffic"
+    DATASET_PATH = f"{LoadDataset.DATASET_PATH}/Traffic"
 
     @classmethod
     def load_data(cls, group):

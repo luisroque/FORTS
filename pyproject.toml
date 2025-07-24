@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=64.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "forts"
+version = "0.0.1"
+authors = [
+  { name="Luis Roque", email="luis_roque@live.com" },
+]
+description = "FORTS: An Evaluation Framework for Time Series Foundation Models"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.11"
+
+[project.urls]
+"Homepage" = "https://github.com/luisroque/FORTS"

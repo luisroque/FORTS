@@ -1,24 +1,22 @@
-import os
-
 import pandas as pd
 
-base_path = "assets/model_weights_out_domain/hypertuning_final"
-plots_dir = "assets/plots"
-results_out_dir = "assets/results_forecast_out_domain_summary"
+from forts.gcs_utils import gcs_list_files, gcs_read_csv, get_gcs_path
 
-os.makedirs(plots_dir, exist_ok=True)
-os.makedirs(results_out_dir, exist_ok=True)
+base_path = get_gcs_path("model_weights_out_domain/hypertuning_final")
+plots_dir = get_gcs_path("plots")
+results_out_dir = get_gcs_path("results_forecast_out_domain_summary")
+
 
 performance_results = [
-    f
-    for f in os.listdir(base_path)
-    if (f.endswith(".csv") and not (f.startswith("MIXED")))
+    f.split("/")[-1]
+    for f in gcs_list_files(base_path, extension=".csv")
+    if not f.startswith("MIXED")
 ]
 
 results_combined = []
 for result in performance_results:
-    csv_path = os.path.join(base_path, result)
-    df = pd.read_csv(csv_path)
+    csv_path = f"{base_path}/{result}"
+    df = gcs_read_csv(csv_path)
 
     df["Dataset"] = result.split("_")[0]
     df["Group"] = result.split("_")[1]
@@ -40,5 +38,5 @@ results_df = min_loss_df.groupby("Method")["time_total_s"].sum().reset_index()
 
 method_order = sorted(results_df["Method"].unique().tolist())
 
-csv_path = os.path.join(results_out_dir, "training_time_stats_per_method.csv")
+csv_path = f"{results_out_dir}/training_time_stats_per_method.csv"
 results_df.to_csv(csv_path, index=False)

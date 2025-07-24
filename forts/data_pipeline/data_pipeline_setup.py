@@ -126,6 +126,7 @@ class DataPipeline:
             # ds = ds[ds["unique_id"].isin(ds["unique_id"].unique()[:20])]
         except FileNotFoundError as e:
             print(f"Error loading data for {dataset_name} - {group}: {e}")
+            raise e
 
         freq = data_cls.frequency_pd[group]
         n_series = int(ds.nunique()["unique_id"])

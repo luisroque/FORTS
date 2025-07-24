@@ -1,11 +1,12 @@
 import pandas as pd
-from gluonts.dataset.repository.datasets import get_dataset
 
+from forts.gcs_utils import get_gcs_fs
 from forts.load_data.base import LoadDataset
 
 
 class M1Dataset(LoadDataset):
     DATASET_NAME = "M1"
+    DATASET_PATH = f"{LoadDataset.DATASET_PATH}/m1"
 
     horizons_map = {
         "Quarterly": 2,
@@ -38,32 +39,15 @@ class M1Dataset(LoadDataset):
 
     @classmethod
     def load_data(cls, group, min_n_instances=None):
-
-        dataset = get_dataset(f"m1_{group.lower()}", regenerate=False)
-        train_list = dataset.train
-
-        df_list = []
-        for i, series in enumerate(train_list):
-            s = pd.Series(
-                series["target"],
-                index=pd.date_range(
-                    start=series["start"].to_timestamp(),
-                    freq=series["start"].freq,
-                    periods=len(series["target"]),
-                ),
+        gcs_path = f"{cls.DATASET_PATH}/{group.lower()}.parquet"
+        try:
+            with get_gcs_fs().open(gcs_path, "rb") as f:
+                df = pd.read_parquet(f)
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"Dataset not found at {gcs_path}. "
+                "Please run the seeding script: python scripts/seed_gcs_datasets.py"
             )
-
-            if group == "australian_electricity_demand":
-                s = s.resample("W").sum()
-
-            s_df = s.reset_index()
-            s_df.columns = ["ds", "y"]
-            s_df["unique_id"] = f"ID{i}"
-
-            df_list.append(s_df)
-
-        df = pd.concat(df_list).reset_index(drop=True)
-        df = df[["unique_id", "ds", "y"]]
 
         if min_n_instances is not None:
             df = cls.prune_df_by_size(df, min_n_instances)

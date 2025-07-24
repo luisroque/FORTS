@@ -1,11 +1,11 @@
 import pandas as pd
-from datasetsforecast.m4 import M4
 
+from forts.gcs_utils import get_gcs_fs
 from forts.load_data.base import LoadDataset
 
 
 class M4Dataset(LoadDataset):
-    DATASET_PATH = "assets/datasets"
+    DATASET_PATH = f"{LoadDataset.DATASET_PATH}/m4"
     DATASET_NAME = "M4"
 
     horizons_map = {
@@ -39,21 +39,15 @@ class M4Dataset(LoadDataset):
 
     @classmethod
     def load_data(cls, group, min_n_instances=None):
-        ds, *_ = M4.load(cls.DATASET_PATH, group=group)
-        ds["ds"] = ds["ds"].astype(int)
-
-        if group == "Quarterly":
-            ds = ds.query('unique_id!="Q23425"').reset_index(drop=True)
-
-        unq_periods = ds["ds"].sort_values().unique()
-
-        dates = pd.date_range(
-            end="2024-03-01", periods=len(unq_periods), freq=cls.frequency_pd[group]
-        )
-
-        new_ds = {k: v for k, v in zip(unq_periods, dates)}
-
-        ds["ds"] = ds["ds"].map(new_ds)
+        gcs_path = f"{cls.DATASET_PATH}/{group.lower()}.parquet"
+        try:
+            with get_gcs_fs().open(gcs_path, "rb") as f:
+                ds = pd.read_parquet(f)
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"Dataset not found at {gcs_path}. "
+                "Please run the seeding script: python scripts/seed_gcs_datasets.py"
+            )
 
         if min_n_instances is not None:
             ds = cls.prune_df_by_size(ds, min_n_instances)

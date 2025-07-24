@@ -1,8 +1,10 @@
 import pandas as pd
 
+from forts.gcs_utils import get_datasets_path
+
 
 class LoadDataset:
-    DATASET_PATH = "assets/datasets"
+    DATASET_PATH = get_datasets_path()
     DATASET_NAME = ""
 
     horizons_map = {

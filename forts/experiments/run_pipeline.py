@@ -1,5 +1,3 @@
-import os
-
 import pandas as pd
 
 from forts.data_pipeline.data_pipeline_setup import DataPipeline, build_mixed_trainval
@@ -9,6 +7,7 @@ from forts.experiments.helper import (
     extract_horizon,
     set_device,
 )
+from forts.gcs_utils import gcs_write_csv, get_gcs_path
 from forts.metrics.evaluation_pipeline import evaluation_pipeline_forts_forecast
 from forts.model_pipeline.model_pipeline import ModelPipeline, ModelPipelineCoreset
 
@@ -276,10 +275,8 @@ if __name__ == "__main__":
 
     df_results = pd.DataFrame(results)
 
-    os.makedirs("assets", exist_ok=True)
-    os.makedirs("assets/results_forecast", exist_ok=True)
-    df_results.to_csv("assets/results_forecast/final_results.csv", index=False)
+    results_path = get_gcs_path("results_forecast")
+    final_results_path = f"{results_path}/final_results.csv"
+    gcs_write_csv(df_results, final_results_path)
 
-    print(
-        "Final forecast results saved to " "assets/results_forecast/final_results.csv"
-    )
+    print(f"Final forecast results saved to {final_results_path}")

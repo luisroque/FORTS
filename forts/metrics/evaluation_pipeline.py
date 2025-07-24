@@ -1,8 +1,6 @@
-import json
-import os
-
 import numpy as np
 
+from forts.gcs_utils import gcs_path_exists, gcs_read_json, gcs_write_json, get_gcs_path
 from forts.metrics.evaluation_metrics import mae, mase, rmse, rmsse, smape
 from forts.model_pipeline.core.core_extension import CustomNeuralForecast
 from forts.model_pipeline.model_pipeline import ModelPipeline
@@ -30,12 +28,11 @@ def evaluation_pipeline_forts_forecast(
     in domain and out of domain
     """
     if test_mode:
-        results_folder = "assets/test_results"
+        results_folder = get_gcs_path("test_results")
     elif finetune:
-        results_folder = "assets/results_forecast_fine_tuning"
+        results_folder = get_gcs_path("results_forecast_fine_tuning")
     else:
-        results_folder = f"assets/results_forecast_{mode}"
-    os.makedirs(results_folder, exist_ok=True)
+        results_folder = get_gcs_path(f"results_forecast_{mode}")
 
     if window_size_source is None:
         window_size_source = window_size
@@ -44,25 +41,22 @@ def evaluation_pipeline_forts_forecast(
 
     if dataset_source:
         if finetune:
-            results_file = os.path.join(
-                results_folder,
-                f"{dataset}_{dataset_group}_{model_name}_{horizon}_"
-                f"trained_on_{dataset_source}_{dataset_group_source}_finetuning.json",
+            results_file = (
+                f"{results_folder}/{dataset}_{dataset_group}_{model_name}_{horizon}_"
+                f"trained_on_{dataset_source}_{dataset_group_source}_finetuning.json"
             )
         else:
-            results_file = os.path.join(
-                results_folder,
-                f"{dataset}_{dataset_group}_{model_name}_{horizon}_"
-                f"trained_on_{dataset_source}_{dataset_group_source}.json",
+            results_file = (
+                f"{results_folder}/{dataset}_{dataset_group}_{model_name}_{horizon}_"
+                f"trained_on_{dataset_source}_{dataset_group_source}.json"
             )
     else:
-        results_file = os.path.join(
-            results_folder, f"{dataset}_{dataset_group}_{model_name}_{horizon}.json"
+        results_file = (
+            f"{results_folder}/{dataset}_{dataset_group}_{model_name}_{horizon}.json"
         )
 
-    if os.path.exists(results_file):
-        with open(results_file, "r") as f:
-            existing_results = json.load(f)
+    if gcs_path_exists(results_file):
+        existing_results = gcs_read_json(results_file)
         row_forecast.update(existing_results)
         print(
             f"[SKIP] Results file '{results_file}' already exists. "
@@ -72,7 +66,7 @@ def evaluation_pipeline_forts_forecast(
 
     if finetune:
         # Check if target dataset is large enough for fine-tuning
-        if window_size < 2 * window_size_source:
+        if window_size < window_size_source:
             print(
                 f"Skipping fine-tuning for {model_name} on {dataset}/{dataset_group} "
                 f"from {dataset_source}/{dataset_group_source}: "
@@ -186,6 +180,5 @@ def evaluation_pipeline_forts_forecast(
                 row_forecast[metric_prefix.format(metric="RMSSE", stat=stat)] = val
                 print(f"[RMSSE/{stat} ({mode})] = {val:.4f}")
 
-    with open(results_file, "w") as f:
-        json.dump(row_forecast, f)
+    gcs_write_json(row_forecast, results_file)
     print(f"Results for forecast saved to '{results_file}'")

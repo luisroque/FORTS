@@ -1,5 +1,3 @@
-import os
-
 import pandas as pd
 from neuralforecast.auto import (
     AutoiTransformer,
@@ -10,11 +8,12 @@ from neuralforecast.auto import (
     AutoTSMixer,
 )
 
+from forts.gcs_utils import gcs_list_files, gcs_write_csv, get_gcs_path
 from forts.model_pipeline.core.core_extension import CustomNeuralForecast
 
-BASE_DIR = "assets/model_weights_out_domain/hypertuning"
+BASE_DIR = get_gcs_path("model_weights_out_domain/hypertuning")
 OUTPUT_CSV = "model_parameter_counts.csv"
-results_out_dir = "assets/results_forecast_out_domain_summary"
+results_out_dir = get_gcs_path("results_forecast_out_domain_summary")
 
 
 MODEL_CLASSES = {
@@ -34,13 +33,14 @@ def count_parameters(model):
 def main():
     records = []
 
-    for filename in os.listdir(BASE_DIR):
-        if filename.endswith("_neuralforecast") and filename.startswith("MIXED"):
+    all_files = gcs_list_files(BASE_DIR, extension="_neuralforecast")
+
+    for model_path in all_files:
+        filename = model_path.split("/")[-1]
+        if filename.startswith("MIXED"):
             for name, ModelClass in MODEL_CLASSES:
                 if name not in filename:
                     continue
-
-                model_path = os.path.join(BASE_DIR, filename)
 
                 try:
                     # dummy init for loading
@@ -73,10 +73,10 @@ def main():
     df = pd.DataFrame(records)
     df_agg = df.groupby("model_name", as_index=False)["num_parameters"].mean()
 
-    csv_path = os.path.join(results_out_dir, OUTPUT_CSV)
-    df_agg.to_csv(csv_path, index=False)
+    csv_path = f"{results_out_dir}/{OUTPUT_CSV}"
+    gcs_write_csv(df_agg, csv_path)
 
-    print(f"\nSaved model parameter counts to '{OUTPUT_CSV}'.")
+    print(f"\nSaved model parameter counts to '{csv_path}'.")
 
 
 if __name__ == "__main__":

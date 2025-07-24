@@ -6,6 +6,7 @@ from forts.load_data.base import LoadDataset
 
 class ETTh1Dataset(LoadDataset):
     DATASET_NAME = "ETTh1"
+    DATASET_PATH = f"{LoadDataset.DATASET_PATH}/ETTh1"
 
     @classmethod
     def load_data(cls, group):

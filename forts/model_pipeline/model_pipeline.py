@@ -1,4 +1,3 @@
-import os
 from typing import Union
 
 import pandas as pd
@@ -12,6 +11,7 @@ from neuralforecast.auto import (
 )
 from ray import tune
 
+from forts.gcs_utils import gcs_write_csv, get_model_weights_path
 from forts.model_pipeline.core.core_extension import CustomNeuralForecast
 from forts.visualization.model_visualization import plot_generated_vs_original
 
@@ -136,14 +136,13 @@ class ModelPipeline(_ModelListMixin):
 
         model_list = self.get_model_list()
 
+        weights_folder = get_model_weights_path()
         if test_mode:
-            weights_folder = "assets/test_model_weights"
+            weights_folder = f"{weights_folder}/test"
         else:
-            weights_folder = f"assets/model_weights_{mode}"
-        os.makedirs(weights_folder, exist_ok=True)
+            weights_folder = f"{weights_folder}/{mode}"
 
         save_dir = f"{weights_folder}/hypertuning{mode_suffix}"
-        os.makedirs(save_dir, exist_ok=True)
 
         for name, ModelClass in model_list:
             print(f"\n=== Handling {name} ===")
@@ -174,23 +173,21 @@ class ModelPipeline(_ModelListMixin):
 
             init_kwargs["config"] = base_config
 
-            nf_save_path = os.path.join(
-                save_dir,
-                f"{dataset_source}_{dataset_group_source}_{name}_neuralforecast",
-            )
+            nf_save_path = f"{save_dir}/{dataset_source}_{dataset_group_source}_{name}_neuralforecast"
 
-            if os.path.exists(nf_save_path):
+            try:
                 print(
-                    f"Found saved data_pipeline for {name}. "
-                    "Reinitializing wrapper and loading weights..."
+                    f"Attempting to load saved model for {name} from {nf_save_path}..."
                 )
-
                 auto_model = ModelClass(**init_kwargs)
                 nf = CustomNeuralForecast(models=[auto_model], freq=self.freq)
-
                 model = nf.load(path=nf_save_path)
-            else:
-                print(f"No saved {name} found. Training & tuning from scratch...")
+                print("Load successful.")
+            except Exception:
+                print(
+                    f"No saved {name} found at {nf_save_path}. "
+                    "Training & tuning from scratch..."
+                )
                 auto_model = ModelClass(**init_kwargs)
                 model = CustomNeuralForecast(models=[auto_model], freq=self.freq)
                 model.fit(df=trainval_long, val_size=self.h)
@@ -199,11 +196,8 @@ class ModelPipeline(_ModelListMixin):
                 print(f"Saved {name} NeuralForecast object to {nf_save_path}")
 
                 results = model.models[0].results.get_dataframe()
-                results_file = os.path.join(
-                    save_dir,
-                    f"{dataset_source}_{dataset_group_source}_{name}_results.csv",
-                )
-                results.to_csv(results_file, index=False)
+                results_file = f"{save_dir}/{dataset_source}_{dataset_group_source}_{name}_results.csv"
+                gcs_write_csv(results, results_file)
                 print(f"Saved tuning results to {results_file}")
 
             self.models[name] = model
@@ -242,15 +236,12 @@ class ModelPipeline(_ModelListMixin):
         finetune_nf.fit(df=target_train_df, val_size=self.h)
 
         # Save the fine-tuned model
+        weights_folder = get_model_weights_path()
         if test_mode:
-            save_dir = "assets/test_model_weights/hypertuning_finetuned"
+            save_dir = f"{weights_folder}/test/hypertuning_finetuned"
         else:
-            save_dir = "assets/model_weights_finetuned/hypertuning"
-        os.makedirs(save_dir, exist_ok=True)
-        nf_save_path = os.path.join(
-            save_dir,
-            f"{dataset_source}_{dataset_group_source}_{model_name}_neuralforecast",
-        )
+            save_dir = f"{weights_folder}/finetuned/hypertuning"
+        nf_save_path = f"{save_dir}/{dataset_source}_{dataset_group_source}_{model_name}_neuralforecast"
         finetune_nf.save(path=nf_save_path, overwrite=True, save_dataset=False)
         print(
             f"Saved fine-tuned {model_name} " f"NeuralForecast object to {nf_save_path}"

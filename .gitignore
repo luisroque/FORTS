@@ -198,3 +198,8 @@ optuna_study.db
 *.h5
 *.json
 *.jsonl
+
+# Terraform
+terraform.tfvars
+.terraform/
+.terraform.lock.hcl

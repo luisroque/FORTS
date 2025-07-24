@@ -6,6 +6,7 @@ from forts.load_data.base import LoadDataset
 
 class WeatherDataset(LoadDataset):
     DATASET_NAME = "Weather"
+    DATASET_PATH = f"{LoadDataset.DATASET_PATH}/Weather"
 
     @classmethod
     def load_data(cls, group):

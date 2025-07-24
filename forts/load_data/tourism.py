@@ -1,66 +1,38 @@
-import os
-import zipfile
-from io import BytesIO
-
 import numpy as np
 import pandas as pd
-import requests
 
+from forts.gcs_utils import get_gcs_fs
 from forts.load_data.base import LoadDataset
 
 
 class TourismDataset(LoadDataset):
-    DATASET_PATH = "assets/datasets/tourism/"
+    DATASET_PATH = f"{LoadDataset.DATASET_PATH}/tourism"
     DATASET_NAME = "Tourism"
     DIR_NAME = "27-3-Athanasopoulos1"
-
-    DATA_URL = f"https://robjhyndman.com/data/{DIR_NAME}.zip"
 
     frequency_pd = {"Yearly": "Y", "Quarterly": "QS", "Monthly": "ME"}
 
     @classmethod
-    def download_and_extract(cls):
-        dataset_folder = os.path.join(cls.DATASET_PATH, cls.DIR_NAME)
-        if os.path.exists(dataset_folder):
-            print(f"Dataset already exists at {dataset_folder}. Skipping download.")
-            return
-
-        if not os.path.exists(cls.DATASET_PATH):
-            os.makedirs(cls.DATASET_PATH)
-
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/91.0.4472.124 Safari/537.36"
-        }
-
-        print(f"Downloading dataset from {cls.DATA_URL}...")
-        response = requests.get(cls.DATA_URL, headers=headers, timeout=30)
-        if response.status_code == 200:
-            with zipfile.ZipFile(BytesIO(response.content)) as z:
-                z.extractall(cls.DATASET_PATH)
-            print("Dataset downloaded and extracted successfully.")
-        else:
-            raise Exception(
-                f"Failed to download data: status code {response.status_code}"
-            )
-
-    @classmethod
     def load_data(cls, group):
-        cls.download_and_extract()
         assert group in cls.data_group
 
         ds = {}
-        train = pd.read_csv(
-            os.path.join(cls.DATASET_PATH, f"{group.lower()}_in.csv"),
-            header=0,
-            delimiter=",",
-        )
-        test = pd.read_csv(
-            os.path.join(cls.DATASET_PATH, f"{group.lower()}_oos.csv"),
-            header=0,
-            delimiter=",",
-        )
+        gcs_fs = get_gcs_fs()
+
+        base_path = f"{cls.DATASET_PATH}/{cls.DIR_NAME}"
+        train_path = f"{base_path}/{group.lower()}_in.csv"
+        test_path = f"{base_path}/{group.lower()}_oos.csv"
+
+        try:
+            with gcs_fs.open(train_path) as f:
+                train = pd.read_csv(f, header=0, delimiter=",")
+            with gcs_fs.open(test_path) as f:
+                test = pd.read_csv(f, header=0, delimiter=",")
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"Dataset not found at {base_path}. "
+                "Please run the seeding script: python scripts/seed_gcs_datasets.py"
+            )
 
         if group == "Yearly":
             train_meta = train[:2]

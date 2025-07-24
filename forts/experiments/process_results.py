@@ -1,30 +1,35 @@
-import json
-from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
 
-BASE_OUT_DOMAIN = Path("assets/results_forecast_out_domain")
-BASE_IN_DOMAIN = Path("assets/results_forecast_in_domain")
-BASE_BASIC_FORECASTING = Path("assets/results_forecast_basic_forecasting")
-SUMMARY_DIR = Path("assets/results_forecast_out_domain_summary")
+from forts.gcs_utils import (
+    gcs_list_files,
+    gcs_read_csv,
+    gcs_read_json,
+    gcs_write_csv,
+    get_gcs_path,
+)
+
+BASE_OUT_DOMAIN = get_gcs_path("results_forecast_out_domain")
+BASE_IN_DOMAIN = get_gcs_path("results_forecast_in_domain")
+BASE_BASIC_FORECASTING = get_gcs_path("results_forecast_basic_forecasting")
+SUMMARY_DIR = get_gcs_path("results_forecast_out_domain_summary")
+
 
 FM_PATHS = {
-    "moirai": SUMMARY_DIR / "moirai_results.csv",
-    "timemoe": SUMMARY_DIR / "timemoe_results.csv",
+    "moirai": f"{SUMMARY_DIR}/moirai_results.csv",
+    "timemoe": f"{SUMMARY_DIR}/timemoe_results.csv",
 }
 
 
-def load_json_files(base_path: Union[str, Path]) -> pd.DataFrame:
+def load_json_files(base_path: str) -> pd.DataFrame:
     """
-    Load all JSON files from a directory into a DataFrame.
+    Load all JSON files from a GCS directory into a DataFrame.
     """
-    base_path = Path(base_path)
     data = []
-    for file in base_path.glob("*.json"):
-        with file.open("r") as f:
-            data.append(json.load(f))
+    for file_path in gcs_list_files(base_path, extension=".json"):
+        data.append(gcs_read_json(file_path))
     return pd.DataFrame(data)
 
 
@@ -74,11 +79,11 @@ def add_source_target_pair_column(df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def apply_fm_results(base_df: pd.DataFrame, path_fm: Union[str, Path]) -> pd.DataFrame:
+def apply_fm_results(base_df: pd.DataFrame, path_fm: str) -> pd.DataFrame:
     """
     Merge forecast model (FM) results with the filtered coreset.
     """
-    fm_df = pd.read_csv(path_fm)
+    fm_df = gcs_read_csv(path_fm)
     required_columns = base_df.columns
 
     for col in required_columns:
@@ -104,7 +109,7 @@ def summarize_metric(
     filter_same_seasonality: bool = False,
     src_seas_col: str = "Dataset Group Source",
     tgt_seas_col: str = "Dataset Group Target",
-    out_path: Optional[Path] = None,
+    out_path: Optional[str] = None,
     fname: Optional[str] = None,
     rank_method: str = "min",
     agg_func=np.nanmean,
@@ -134,11 +139,10 @@ def summarize_metric(
     summary.sort_values(by=sort_by, inplace=True)
 
     if out_path:
-        out_path.mkdir(parents=True, exist_ok=True)
         if fname is None:
             stem = "_".join(aggregate_by)
             fname = f"{mode}_{metric.replace(' ','_').lower()}_{stem}.csv"
-        summary.to_csv(out_path / fname, index=False)
+        gcs_write_csv(summary, f"{out_path}/{fname}")
 
     return summary
 

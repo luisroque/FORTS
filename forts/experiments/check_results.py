@@ -1,10 +1,9 @@
-import json
 import re
-from pathlib import Path
 
 import pandas as pd
 
 from forts.experiments.run_pipeline import DATASET_GROUP_FREQ
+from forts.gcs_utils import gcs_list_files, gcs_read_csv, gcs_read_json, get_gcs_path
 from forts.model_pipeline.model_pipeline import _ModelListMixin
 
 
@@ -101,24 +100,25 @@ def get_experiment_grid():
 
 
 def load_summary_results(suffix):
-    summary_dir = Path("assets/results_forecast_out_domain_summary")
+    summary_dir = get_gcs_path("results_forecast_out_domain_summary")
     fname = f"results_all_seasonalities_all_combinations_mase_mean{suffix}.csv"
-    fpath = summary_dir / fname
-    if fpath.exists():
-        return pd.read_csv(fpath)
-    return None
+    fpath = f"{summary_dir}/{fname}"
+    try:
+        return gcs_read_csv(fpath)
+    except FileNotFoundError:
+        pass
 
 
 def load_finetuning_results():
     results = []
-    base_path = Path("assets/results_forecast_fine_tuning")
-    if not base_path.exists():
-        return pd.DataFrame()
+    base_path = get_gcs_path("results_forecast_fine_tuning")
+    all_files = gcs_list_files(base_path, extension=".json")
 
-    for fpath in base_path.glob("*.json"):
+    for fpath in all_files:
+        fname = fpath.split("/")[-1]
         match = re.match(
             r"(.+?)_(.+?)_(Auto.+?)_(\d+)_trained_on_(.+?)_(.+?)_finetuning.json",
-            fpath.name,
+            fname,
         )
         if match:
             (
@@ -129,32 +129,29 @@ def load_finetuning_results():
                 source_ds,
                 source_grp,
             ) = match.groups()
-            with open(fpath, "r") as f:
-                data = json.load(f)
-                mase = data.get(
-                    "Forecast MASE MEAN (last window) Per Series_out_domain"
-                )
-                results.append(
-                    {
-                        "source_dataset": source_ds,
-                        "source_group": source_grp,
-                        "target_dataset": target_ds,
-                        "target_group": target_grp,
-                        "model": model,
-                        "MASE Mean": mase,
-                    }
-                )
+            data = gcs_read_json(fpath)
+            mase = data.get("Forecast MASE MEAN (last window) Per Series_out_domain")
+            results.append(
+                {
+                    "source_dataset": source_ds,
+                    "source_group": source_grp,
+                    "target_dataset": target_ds,
+                    "target_group": target_grp,
+                    "model": model,
+                    "MASE Mean": mase,
+                }
+            )
     return pd.DataFrame(results)
 
 
 def load_raw_results(mode):
     results = []
-    base_path = Path(f"assets/results_forecast_{mode}")
-    if not base_path.exists():
-        return pd.DataFrame()
+    base_path = get_gcs_path(f"results_forecast_{mode}")
+    all_files = gcs_list_files(base_path, extension=".json")
 
-    for fpath in base_path.glob("*.json"):
-        match = re.match(r"(.+?)_(.+?)_(Auto.+?)_(\d+).json", fpath.name)
+    for fpath in all_files:
+        fname = fpath.split("/")[-1]
+        match = re.match(r"(.+?)_(.+?)_(Auto.+?)_(\d+).json", fname)
         if match:
             (
                 target_ds,
@@ -162,19 +159,18 @@ def load_raw_results(mode):
                 model,
                 _,
             ) = match.groups()
-            with open(fpath, "r") as f:
-                data = json.load(f)
-                mase = data.get(f"Forecast MASE MEAN (last window) Per Series_{mode}")
-                results.append(
-                    {
-                        "source_dataset": "None",
-                        "source_group": "None",
-                        "target_dataset": target_ds,
-                        "target_group": target_grp,
-                        "model": model,
-                        "MASE Mean": mase,
-                    }
-                )
+            data = gcs_read_json(fpath)
+            mase = data.get(f"Forecast MASE MEAN (last window) Per Series_{mode}")
+            results.append(
+                {
+                    "source_dataset": "None",
+                    "source_group": "None",
+                    "target_dataset": target_ds,
+                    "target_group": target_grp,
+                    "model": model,
+                    "MASE Mean": mase,
+                }
+            )
     return pd.DataFrame(results)
 
 

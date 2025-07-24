@@ -1,9 +1,8 @@
-import os
-
 import pytest
 from neuralforecast.auto import AutoNHITS
 
 from forts.data_pipeline.data_pipeline_setup import DataPipeline
+from forts.gcs_utils import gcs_delete_file, get_gcs_path
 from forts.metrics.evaluation_pipeline import evaluation_pipeline_forts_forecast
 from forts.model_pipeline.model_pipeline import ModelPipeline
 
@@ -19,6 +18,8 @@ class TestModelPipeline(ModelPipeline):
         ("Labour", "Monthly", 24, "ME", "Tourism", "Monthly", 12, "ME", True),
         # Case 2: Fine-tuning should run (different seasonalities, valid horizons)
         ("M3", "Yearly", 4, "Y", "M1", "Quarterly", 8, "Q", False),
+        # Case 3: Fine-tuning should run (equal horizons)
+        ("M3", "Monthly", 12, "ME", "M1", "Monthly", 12, "ME", False),
     ],
 )
 def test_finetuning_logic(
@@ -68,15 +69,16 @@ def test_finetuning_logic(
     )
     model_name, model = list(source_mp.models.items())[0]
 
-    # 4. Run the evaluation pipeline, which now contains the fine-tuning logic
-    row_forecast = {}
-    results_file = (
-        f"assets/test_results/{target_dataset}_{target_group}_{model_name}_{H}_"
+    # 4. Clean up any pre-existing test files from GCS
+    results_folder = get_gcs_path("test_results")
+    results_file_gcs = (
+        f"{results_folder}/{target_dataset}_{target_group}_{model_name}_{H}_"
         f"trained_on_{source_dataset}_{source_group}_finetuning.json"
     )
-    if os.path.exists(results_file):
-        os.remove(results_file)
+    gcs_delete_file(results_file_gcs)
 
+    # 5. Run the evaluation pipeline, which now contains the fine-tuning logic
+    row_forecast = {}
     evaluation_pipeline_forts_forecast(
         dataset=target_dataset,
         dataset_group=target_group,
@@ -95,7 +97,7 @@ def test_finetuning_logic(
         test_mode=True,
     )
 
-    # 5. Assert that the correct message (or lack thereof) was printed
+    # 6. Assert that the correct message (or lack thereof) was printed
     captured = capsys.readouterr()
     if should_skip:
         assert "Skipping fine-tuning" in captured.out
