@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Docker
+.dockerignore
+
+# Environment
+.env
+.venv
+venv/
+env/
+.conda
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local data and assets - these should be in GCS
+assets/
+cache/
+
+# Terraform state
+terraform/
+.terraform/
+terraform.tfstate*
+
+# Other
+*.DS_Store
+
+*.json

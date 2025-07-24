@@ -203,3 +203,8 @@ optuna_study.db
 terraform.tfvars
 .terraform/
 .terraform.lock.hcl
+
+*.json
+.env
+!.env.example
+gcp-key.json
