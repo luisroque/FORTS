@@ -49,7 +49,7 @@ case "$MACHINE_TYPE" in
         WORKER_POOL_SPEC="machine-type=n1-standard-8,accelerator-type=NVIDIA_TESLA_T4,accelerator-count=1"
         ;;
     gpu-fast)
-        WORKER_POOL_SPEC="machine-type=n1-standard-16,accelerator-type=NVIDIA_TESLA_A100_40GB,accelerator-count=1"
+        WORKER_POOL_SPEC="machine-type=n1-standard-16,accelerator-type=NVIDIA_L4,accelerator-count=1"
         ;;
     *)
         echo "Error: Invalid machine type '$MACHINE_TYPE'."
@@ -88,7 +88,8 @@ gcloud ai custom-jobs create \
   --region=${GCP_REGION} \
   --display-name=${JOB_DISPLAY_NAME} \
   --worker-pool-spec="${WORKER_POOL_SPEC},replica-count=1,container-image-uri=${DOCKER_IMAGE_URI}" \
-  --args="${EXPERIMENT_NAME}"
+  --args="${EXPERIMENT_NAME}" \
+  --set-env-vars="GCS_BUCKET=$GCS_BUCKET"
 
 echo ""
 echo "--- ✅ Job submitted successfully! ---"
