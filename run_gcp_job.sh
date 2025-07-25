@@ -88,8 +88,7 @@ gcloud ai custom-jobs create \
   --region=${GCP_REGION} \
   --display-name=${JOB_DISPLAY_NAME} \
   --worker-pool-spec="${WORKER_POOL_SPEC},replica-count=1,container-image-uri=${DOCKER_IMAGE_URI}" \
-  --args="${EXPERIMENT_NAME}" \
-  --set-env-vars="GCS_BUCKET=$GCS_BUCKET"
+  --args="${EXPERIMENT_NAME}"
 
 echo ""
 echo "--- ✅ Job submitted successfully! ---"
