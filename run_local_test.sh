@@ -26,9 +26,9 @@ if [ -z "$GCS_BUCKET" ]; then
     exit 1
 fi
 
-# 3. Build the Docker image
-echo "Building Docker image: $IMAGE_NAME..."
-docker build -t "$IMAGE_NAME" .
+# 3. Build the Docker image for amd64 platform
+echo "Building Docker image for amd64: $IMAGE_NAME..."
+docker build --platform linux/amd64 -t "$IMAGE_NAME" .
 
 # 4. Run the container with the environment variable and credentials
 echo "Running Docker container with experiment: $EXPERIMENT_NAME..."

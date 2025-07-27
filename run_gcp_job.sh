@@ -58,6 +58,10 @@ case "$MACHINE_TYPE" in
         ;;
 esac
 
+# Activate the service account
+echo "--> Activating service account..."
+gcloud auth activate-service-account --key-file=gcp-key.json
+
 
 # --- Main Script Logic ---
 echo "--- Starting GCP Vertex AI Job Submission ---"
@@ -69,19 +73,15 @@ echo "Machine Type:      ${MACHINE_TYPE} (${WORKER_POOL_SPEC})"
 echo "Job Display Name:  ${JOB_DISPLAY_NAME}"
 echo ""
 
-# 1. Authenticate Docker with Artifact Registry using a Service Account Key
-echo "--> Authenticating Docker with Artifact Registry using Service Account..."
-cat gcp-key.json | docker login -u _json_key --password-stdin https://${GCP_REGION}-docker.pkg.dev
+# 1. Build the Docker Image (will be fast due to caching)
+echo "--> Building the Docker image for amd64 platform..."
+docker build --platform linux/amd64 -t ${DOCKER_IMAGE_URI} .
 
-# 2. Build the Docker Image (will be fast due to caching)
-echo "--> Building the Docker image..."
-docker build -t ${DOCKER_IMAGE_URI} .
-
-# 3. Push the Docker Image
+# 2. Push the Docker Image
 echo "--> Pushing the Docker image to Artifact Registry..."
 docker push ${DOCKER_IMAGE_URI}
 
-# 4. Submit the Vertex AI Training Job
+# 3. Submit the Vertex AI Training Job
 echo "--> Submitting the Vertex AI Custom Job..."
 gcloud ai custom-jobs create \
   --project=${GCP_PROJECT_ID} \
