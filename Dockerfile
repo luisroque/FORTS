@@ -16,4 +16,4 @@ COPY . .
 RUN chmod +x ./run_all_experiments.sh
 
 # Set the entrypoint to a bash shell, allowing arguments to be passed to the script
-ENTRYPOINT ["./run_all_experiments.sh"]
+ENTRYPOINT ["/bin/bash", "./run_all_experiments.sh"]
