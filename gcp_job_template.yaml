@@ -1,0 +1,12 @@
+workerPoolSpecs:
+- machineSpec:
+    machineType: MACHINE_TYPE
+    # ACCELERATOR_CONFIG_PLACEHOLDER
+  replicaCount: 1
+  containerSpec:
+    imageUri: DOCKER_IMAGE_URI
+    args:
+    - EXPERIMENT_NAME
+    env:
+    - name: FORTS_GCP_PROJECT_ID
+      value: GCP_PROJECT_ID

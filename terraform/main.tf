@@ -45,3 +45,16 @@ resource "google_artifact_registry_repository" "forts_repo" {
 
   depends_on = [google_project_service.artifactregistry]
 }
+
+resource "google_project_iam_member" "vertex_ai_secret_accessor" {
+  project = var.gcp_project_id
+  role    = "roles/secretmanager.secretAccessor"
+
+  # This grants the role to the default Vertex AI Custom Code Service Agent
+  # See: https://cloud.google.com/vertex-ai/docs/general/access-control#service-agents
+  member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-aiplatform-cc.iam.gserviceaccount.com"
+
+  depends_on = [google_project_service.aiplatform]
+}
+
+data "google_project" "project" {}
