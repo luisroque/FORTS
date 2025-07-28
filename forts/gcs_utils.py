@@ -125,6 +125,15 @@ def gcs_write_json(data: dict, gcs_path: str):
         json.dump(data, f, indent=4)
 
 
+def gcs_delete_directory(gcs_path: str):
+    """
+    Deletes a directory and its contents from GCS if it exists.
+    """
+    fs = get_gcs_fs()
+    if fs.exists(gcs_path):
+        fs.rm(gcs_path, recursive=True)
+
+
 def gcs_delete_file(gcs_path: str):
     """
     Deletes a file from GCS if it exists.

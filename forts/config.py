@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -37,7 +38,7 @@ def get_gcp_secret(secret_id: str, project_id: str) -> Optional[str]:
         response = client.access_secret_version(request={"name": name})
         return response.payload.data.decode("UTF-8")
     except ClientError as e:
-        print(f"Could not access secret {secret_id}: {e}")
+        print(f"Could not access secret {secret_id}: {e}", file=sys.stderr)
         return None
 
 
@@ -52,7 +53,7 @@ def load_config():
     env_path = Path(".") / ".env"
     if env_path.exists():
         load_dotenv(dotenv_path=env_path)
-        print("Loaded configuration from .env file.")
+        print("Loaded configuration from .env file.", file=sys.stderr)
         return
 
     # If no .env file, try loading from GCP Secret Manager (for cloud runs)
@@ -63,15 +64,39 @@ def load_config():
 
     if gcp_project_id:
         print(
-            f"Loading configuration from GCP Secret Manager for project {gcp_project_id}..."
+            f"Loading configuration from GCP Secret Manager for project {gcp_project_id}...",
+            file=sys.stderr,
         )
         for key in ALL_CONFIG_KEYS:
             secret_value = get_gcp_secret(key, gcp_project_id)
             if secret_value:
                 os.environ[key] = secret_value
     else:
-        print("Warning: GCP_PROJECT_ID not set. Unable to load secrets.")
+        print(
+            "Warning: GCP_PROJECT_ID not set. Unable to load secrets.", file=sys.stderr
+        )
 
 
-# Load configuration when this module is imported
-load_config()
+def export_env_variables():
+    """
+    Prints the loaded environment variables as export commands.
+    """
+    load_config()
+    found_any = False
+    for key in ALL_CONFIG_KEYS:
+        value = os.getenv(key)
+        if value:
+            print(f"export {key}='{value}'")
+            found_any = True
+
+    if not found_any:
+        print(
+            "Warning: No FORTS environment variables found. "
+            "Please ensure your .env file is populated with the correct "
+            "variable names (e.g., FORTS_GCP_PROJECT_ID).",
+            file=sys.stderr,
+        )
+
+
+if __name__ == "__main__":
+    export_env_variables()

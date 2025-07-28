@@ -3,8 +3,9 @@
 # Exit immediately if a command exits with a non-zero status.
 set -e
 
-# Load environment variables from .env file or GCP secrets
-python -c "import forts.config; forts.config.load_config()"
+# --- Configuration ---
+# Load environment variables. Assumes the correct conda env is already active.
+eval "$(python -m forts.config)"
 
 # --- Function Definitions for Each Experiment ---
 

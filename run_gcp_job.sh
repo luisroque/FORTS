@@ -17,8 +17,8 @@
 set -e
 
 # --- Configuration ---
-# The forts.config module will handle loading from .env or GCP secrets.
-python -c "import forts.config; forts.config.load_config()"
+# Load environment variables. Assumes the correct conda env is already active.
+eval "$(python -m forts.config)"
 
 # Check for required variables
 if [ -z "$FORTS_GCP_PROJECT_ID" ] || [ -z "$FORTS_GCP_REGION" ] || [ -z "$FORTS_AR_REPO_NAME" ] || [ -z "$FORTS_DOCKER_IMAGE_NAME" ]; then
