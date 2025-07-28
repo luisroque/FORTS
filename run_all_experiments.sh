@@ -4,8 +4,7 @@
 set -e
 
 # --- Configuration ---
-# Load environment variables. Assumes the correct conda env is already active.
-eval "$(python -m forts.config)"
+# Environment variables are expected to be loaded by the calling script (run.sh)
 
 # --- Function Definitions for Each Experiment ---
 

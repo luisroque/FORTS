@@ -5,9 +5,11 @@ WORKDIR /app
 
 # Copy the requirements files and install dependencies
 COPY requirements.txt requirements.txt
-COPY requirements-dev.txt requirements-dev.txt
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install --no-cache-dir -r requirements-dev.txt
+
+# Add build argument for GCP Project ID and set it as an environment variable
+ARG FORTS_GCP_PROJECT_ID
+ENV FORTS_GCP_PROJECT_ID=$FORTS_GCP_PROJECT_ID
 
 # Copy the rest of the application code
 COPY . .
