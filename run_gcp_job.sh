@@ -17,17 +17,12 @@
 set -e
 
 # --- Configuration ---
-# Load environment variables from .env file
-if [ -f load_env.sh ]; then
-    source load_env.sh
-else
-    echo "Error: load_env.sh not found. Please ensure you are in the project root."
-    exit 1
-fi
+# The forts.config module will handle loading from .env or GCP secrets.
+python -c "import forts.config; forts.config.load_config()"
 
 # Check for required variables
-if [ -z "$GCP_PROJECT_ID" ] || [ -z "$GCP_REGION" ] || [ -z "$AR_REPO_NAME" ] || [ -z "$DOCKER_IMAGE_NAME" ]; then
-    echo "Error: Required environment variables are not set. Please check your .env file."
+if [ -z "$FORTS_GCP_PROJECT_ID" ] || [ -z "$FORTS_GCP_REGION" ] || [ -z "$FORTS_AR_REPO_NAME" ] || [ -z "$FORTS_DOCKER_IMAGE_NAME" ]; then
+    echo "Error: Required environment variables are not set. Please check your .env file or GCP secrets."
     exit 1
 fi
 
@@ -35,7 +30,7 @@ fi
 EXPERIMENT_NAME=${1:-all}
 MACHINE_TYPE=${2:-cpu-medium} # Default to cpu-medium
 JOB_DISPLAY_NAME="forts-${EXPERIMENT_NAME}-${MACHINE_TYPE}-$(date +%Y%m%d-%H%M%S)"
-DOCKER_IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${AR_REPO_NAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG:-latest}"
+DOCKER_IMAGE_URI="${FORTS_GCP_REGION}-docker.pkg.dev/${FORTS_GCP_PROJECT_ID}/${FORTS_AR_REPO_NAME}/${FORTS_DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG:-latest}"
 
 # --- Machine Type Configuration ---
 case "$MACHINE_TYPE" in
@@ -65,8 +60,8 @@ gcloud auth activate-service-account --key-file=gcp-key.json
 
 # --- Main Script Logic ---
 echo "--- Starting GCP Vertex AI Job Submission ---"
-echo "Project ID:        ${GCP_PROJECT_ID}"
-echo "Region:            ${GCP_REGION}"
+echo "Project ID:        ${FORTS_GCP_PROJECT_ID}"
+echo "Region:            ${FORTS_GCP_REGION}"
 echo "Docker Image URI:    ${DOCKER_IMAGE_URI}"
 echo "Experiment to run:   ${EXPERIMENT_NAME}"
 echo "Machine Type:      ${MACHINE_TYPE} (${WORKER_POOL_SPEC})"
@@ -84,8 +79,8 @@ docker push ${DOCKER_IMAGE_URI}
 # 3. Submit the Vertex AI Training Job
 echo "--> Submitting the Vertex AI Custom Job..."
 gcloud ai custom-jobs create \
-  --project=${GCP_PROJECT_ID} \
-  --region=${GCP_REGION} \
+  --project=${FORTS_GCP_PROJECT_ID} \
+  --region=${FORTS_GCP_REGION} \
   --display-name=${JOB_DISPLAY_NAME} \
   --worker-pool-spec="${WORKER_POOL_SPEC},replica-count=1,container-image-uri=${DOCKER_IMAGE_URI}" \
   --args="${EXPERIMENT_NAME}"

@@ -4,20 +4,18 @@ import pandas as pd
 from dotenv import load_dotenv
 from gcsfs import GCSFileSystem
 
+import forts.config
+
 # Load environment variables from .env file
 load_dotenv()
 
 
-# --- Configuration ---
+# --- GCS Configuration ---
 
-# The GCS bucket to use for storing results.
-# This can be overridden by setting the GCS_BUCKET environment variable.
-GCS_BUCKET = os.environ.get("GCS_BUCKET")
+GCS_BUCKET = os.getenv(forts.config.GCS_BUCKET_NAME)
 if not GCS_BUCKET:
-    raise ValueError(
-        "GCS_BUCKET environment variable not set. "
-        "Please create a .env file from .env.example."
-    )
+    print("Warning: FORTS_GCS_BUCKET_NAME environment variable not set.")
+
 
 # The base path within the bucket for all experiment outputs.
 # This can be overridden by setting the GCS_EXPERIMENT_ROOT environment variable.

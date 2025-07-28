@@ -3,6 +3,9 @@
 # Exit immediately if a command exits with a non-zero status.
 set -e
 
+# Load environment variables from .env file or GCP secrets
+python -c "import forts.config; forts.config.load_config()"
+
 # --- Function Definitions for Each Experiment ---
 
 run_basic_forecasting() {
