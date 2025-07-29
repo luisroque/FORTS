@@ -2,6 +2,7 @@ import os
 from typing import Union
 
 import pandas as pd
+import torch
 from neuralforecast.auto import (
     AutoiTransformer,
     AutoKAN,
@@ -136,8 +137,7 @@ class ModelPipeline(_ModelListMixin):
             mode_suffix = ""
 
         num_cpus = os.cpu_count()
-        # leave one cpu for the driver
-        resources_per_trial = {"cpu": 1 if num_cpus == 1 else num_cpus - 1}
+        gpus = 1 if torch.cuda.is_available() else 0
 
         model_list = self.get_model_list()
 
@@ -157,6 +157,8 @@ class ModelPipeline(_ModelListMixin):
                     n_series=1,
                     num_samples=max_evals,
                     verbose=True,
+                    cpus=num_cpus,
+                    gpus=gpus,
                 )
                 base_config = ModelClass.get_default_config(
                     h=self.h,
@@ -170,6 +172,8 @@ class ModelPipeline(_ModelListMixin):
                     h=self.h,
                     num_samples=max_evals,
                     verbose=True,
+                    cpus=num_cpus,
+                    gpus=gpus,
                 )
                 base_config = ModelClass.get_default_config(h=self.h, backend="ray")
                 base_config["start_padding_enabled"] = True
@@ -192,7 +196,7 @@ class ModelPipeline(_ModelListMixin):
                 nf = CustomNeuralForecast(models=[auto_model], freq=self.freq)
                 model = nf.load(path=nf_save_path)
                 print("Load successful.")
-            except Exception:
+            except FileNotFoundError:
                 print(
                     f"No saved {name} found at {nf_save_path}. "
                     "Training & tuning from scratch..."
@@ -202,7 +206,6 @@ class ModelPipeline(_ModelListMixin):
                 model.fit(
                     df=trainval_long,
                     val_size=self.h,
-                    resources_per_trial=resources_per_trial,
                 )
 
                 model.save(path=nf_save_path, overwrite=True, save_dataset=False)
