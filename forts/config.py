@@ -77,6 +77,10 @@ def load_config():
         )
 
 
+# Load configuration when this module is imported
+load_config()
+
+
 def export_env_variables():
     """
     Prints the loaded environment variables as export commands.

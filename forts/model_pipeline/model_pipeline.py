@@ -1,3 +1,4 @@
+import os
 from typing import Union
 
 import pandas as pd
@@ -134,6 +135,10 @@ class ModelPipeline(_ModelListMixin):
             trainval_long = self.trainval_long
             mode_suffix = ""
 
+        num_cpus = os.cpu_count()
+        # leave one cpu for the driver
+        resources_per_trial = {"cpu": 1 if num_cpus == 1 else num_cpus - 1}
+
         model_list = self.get_model_list()
 
         weights_folder = get_model_weights_path()
@@ -161,7 +166,11 @@ class ModelPipeline(_ModelListMixin):
                 base_config["scaler_type"] = tune.choice([None, "standard"])
                 base_config["log_every_n_steps"] = 10
             else:
-                init_kwargs = dict(h=self.h, num_samples=max_evals, verbose=True)
+                init_kwargs = dict(
+                    h=self.h,
+                    num_samples=max_evals,
+                    verbose=True,
+                )
                 base_config = ModelClass.get_default_config(h=self.h, backend="ray")
                 base_config["start_padding_enabled"] = True
                 base_config["scaler_type"] = tune.choice([None, "standard"])
@@ -190,7 +199,11 @@ class ModelPipeline(_ModelListMixin):
                 )
                 auto_model = ModelClass(**init_kwargs)
                 model = CustomNeuralForecast(models=[auto_model], freq=self.freq)
-                model.fit(df=trainval_long, val_size=self.h)
+                model.fit(
+                    df=trainval_long,
+                    val_size=self.h,
+                    resources_per_trial=resources_per_trial,
+                )
 
                 model.save(path=nf_save_path, overwrite=True, save_dataset=False)
                 print(f"Saved {name} NeuralForecast object to {nf_save_path}")

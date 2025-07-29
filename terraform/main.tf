@@ -57,4 +57,36 @@ resource "google_project_iam_member" "vertex_ai_secret_accessor" {
   depends_on = [google_project_service.aiplatform]
 }
 
+resource "google_service_account" "vertex_ai_runner" {
+  account_id   = "vertex-ai-runner"
+  display_name = "Service Account for Vertex AI Jobs"
+}
+
+resource "google_project_iam_member" "vertex_ai_runner_secret_accessor" {
+  project = var.gcp_project_id
+  role    = "roles/secretmanager.secretAccessor"
+  member  = "serviceAccount:${google_service_account.vertex_ai_runner.email}"
+}
+
+resource "google_project_iam_member" "vertex_ai_runner_ai_platform_user" {
+  project = var.gcp_project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${google_service_account.vertex_ai_runner.email}"
+}
+
+resource "google_storage_bucket_iam_member" "vertex_ai_runner_storage_admin" {
+  bucket = google_storage_bucket.forts_bucket.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.vertex_ai_runner.email}"
+}
+
+resource "google_service_account_iam_member" "vertex_ai_runner_user" {
+  service_account_id = google_service_account.vertex_ai_runner.name
+  role               = "roles/iam.serviceAccountUser"
+
+  # This allows the job-submitting identity to act as the runner service account.
+  # Replace with your principal if it's different.
+  member             = "serviceAccount:artifact-pusher@${var.gcp_project_id}.iam.gserviceaccount.com"
+}
+
 data "google_project" "project" {}

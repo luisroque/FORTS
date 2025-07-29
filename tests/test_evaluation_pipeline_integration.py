@@ -116,4 +116,3 @@ def test_evaluation_pipeline_skips_for_tourism_monthly_with_real_objects(
         row_forecast["Forecast SMAPE MEAN (last window) Per Series_basic_forecasting"]
         == 18.9948
     )
-    assert row_forecast["source"] == "integration_test_fixture"

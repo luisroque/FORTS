@@ -54,6 +54,7 @@ esac
 # --- Job Setup ---
 JOB_DISPLAY_NAME="forts-${EXPERIMENT_NAME}-${MACHINE_TYPE_KEY}-$(date +%Y%m%d-%H%M%S)"
 DOCKER_IMAGE_URI="${FORTS_GCP_REGION}-docker.pkg.dev/${FORTS_GCP_PROJECT_ID}/${FORTS_AR_REPO_NAME}/${FORTS_DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG:-latest}"
+SERVICE_ACCOUNT_EMAIL="vertex-ai-runner@${FORTS_GCP_PROJECT_ID}.iam.gserviceaccount.com"
 
 # --- Main Script Logic ---
 echo "--- Starting GCP Vertex AI Job Submission ---"
@@ -79,7 +80,8 @@ gcloud ai custom-jobs create \
   --region=${FORTS_GCP_REGION} \
   --display-name=${JOB_DISPLAY_NAME} \
   --worker-pool-spec="${MACHINE_SPEC},replica-count=1,container-image-uri=${DOCKER_IMAGE_URI}" \
-  --args="${EXPERIMENT_NAME}"
+  --args="${EXPERIMENT_NAME}" \
+  --service-account=${SERVICE_ACCOUNT_EMAIL}
 
 echo ""
 echo "--- ✅ Job submitted successfully! ---"

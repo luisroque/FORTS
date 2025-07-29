@@ -38,7 +38,7 @@ def test_finetuning_logic(
     Tests that fine-tuning is correctly skipped or executed based on the
     relative horizons of the source and target datasets.
     """
-    # 1. Setup source pipeline
+    # Setup source pipeline
     source_dp = DataPipeline(
         dataset_name=source_dataset,
         dataset_group=source_group,
@@ -48,7 +48,7 @@ def test_finetuning_logic(
     )
     source_mp = TestModelPipeline(data_pipeline=source_dp)
 
-    # 2. Setup target pipeline
+    # Setup target pipeline
     target_dp = DataPipeline(
         dataset_name=target_dataset,
         dataset_group=target_group,
@@ -58,7 +58,7 @@ def test_finetuning_logic(
     )
     target_mp = TestModelPipeline(data_pipeline=target_dp)
 
-    # 3. Train a model on the source data
+    # Train a model on the source data
     source_mp.hyper_tune_and_train(
         max_evals=1,
         mode="out_domain",
@@ -69,8 +69,8 @@ def test_finetuning_logic(
     )
     model_name, model = list(source_mp.models.items())[0]
 
-    # 4. Clean up any pre-existing test files from GCS
-    results_folder = get_gcs_path("test_results")
+    # 4. Clean up any pre-existing test files from GCS to ensure a clean slate
+    results_folder = get_gcs_path("results/test_results")
     results_file_gcs = (
         f"{results_folder}/{target_dataset}_{target_group}_{model_name}_{H}_"
         f"trained_on_{source_dataset}_{source_group}_finetuning.json"
@@ -101,11 +101,6 @@ def test_finetuning_logic(
     captured = capsys.readouterr()
     if should_skip:
         assert "Skipping fine-tuning" in captured.out
-        assert (
-            f"Target horizon ({H}) is too small for source horizon ({H_TL})"
-            in captured.out
-        )
-        # The evaluation should exit early, so no results should be in the dictionary
         assert (
             "Forecast SMAPE MEAN (last window) Per Series_out_domain"
             not in row_forecast

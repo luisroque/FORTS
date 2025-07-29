@@ -28,11 +28,11 @@ def evaluation_pipeline_forts_forecast(
     in domain and out of domain
     """
     if test_mode:
-        results_folder = get_gcs_path("test_results")
+        results_folder = get_gcs_path("results/test_results")
     elif finetune:
-        results_folder = get_gcs_path("results_forecast_fine_tuning")
+        results_folder = get_gcs_path("results/results_forecast_fine_tuning")
     else:
-        results_folder = get_gcs_path(f"results_forecast_{mode}")
+        results_folder = get_gcs_path(f"results/results_forecast_{mode}")
 
     if window_size_source is None:
         window_size_source = window_size
