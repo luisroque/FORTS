@@ -79,7 +79,7 @@ def main():
         set_device(use_gpu=args.use_gpu)
 
         results = []
-        model_list = get_model_list()
+        model_list = get_model_list(args.model)
 
         if args.coreset:
             LOO_RESULTS = []
@@ -362,7 +362,7 @@ def main():
 
         df_results = pd.DataFrame(results)
 
-        results_path = get_gcs_path("results_forecast")
+        results_path = get_gcs_path("results/results_forecast")
         final_results_path = f"{results_path}/final_results.csv"
         gcs_write_csv(df_results, final_results_path)
 

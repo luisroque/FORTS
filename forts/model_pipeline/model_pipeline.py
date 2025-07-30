@@ -115,7 +115,6 @@ class ModelPipeline(_ModelListMixin):
         Each data_pipeline does internal time-series cross-validation to select
         its best hyperparameters.
         """
-        original_mode = mode
         valid_modes = {
             "in_domain",
             "out_domain",
@@ -127,6 +126,8 @@ class ModelPipeline(_ModelListMixin):
                 f"Unsupported mode: '{mode}'. Supported modes are: "
                 f"{sorted(valid_modes)}."
             )
+
+        path_mode = "coreset" if mode == "out_domain_coreset" else mode
         mode = "out_domain" if mode in ("out_domain", "out_domain_coreset") else mode
 
         if mode == "basic_forecasting":
@@ -145,7 +146,7 @@ class ModelPipeline(_ModelListMixin):
         if test_mode:
             weights_folder = f"{weights_folder}/test"
         else:
-            weights_folder = f"{weights_folder}/{mode}"
+            weights_folder = f"{weights_folder}/{path_mode}"
 
         save_dir = f"{weights_folder}/hypertuning{mode_suffix}"
 
@@ -181,7 +182,7 @@ class ModelPipeline(_ModelListMixin):
                 base_config["log_every_n_steps"] = 10
             base_config["max_steps"] = max_steps
 
-            if original_mode == "out_domain":
+            if mode == "out_domain":
                 base_config["input_size"] = self.h
 
             init_kwargs["config"] = base_config

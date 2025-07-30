@@ -4,14 +4,22 @@ import os
 from forts.gcs_utils import gcs_path_exists, get_gcs_path
 
 
-def get_model_list():
+def get_model_list(model_name=None):
     """
     Returns the list of models that are used in the experiments.
+    If model_name is specified, it returns a list containing only that model.
     """
     # Avoid circular import
     from forts.model_pipeline.model_pipeline import _ModelListMixin
 
-    return _ModelListMixin().get_model_list()
+    model_list = _ModelListMixin().get_model_list()
+
+    if model_name:
+        model_list = [m for m in model_list if m[0] == model_name]
+        if not model_list:
+            raise ValueError(f"Model '{model_name}' not found in the model list.")
+
+    return model_list
 
 
 def check_results_exist(
@@ -86,7 +94,7 @@ def set_device(use_gpu: bool):
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
         os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
     else:
-        print("Using GPU\n\n")
+        print("Using GPU if available")
 
 
 def cmd_parser():
@@ -118,6 +126,12 @@ def cmd_parser():
         "--finetune",
         action="store_true",
         help="Enable fine-tuning on the target dataset.",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="Specify a single model to run (e.g., AutoNHITS).",
     )
     args = parser.parse_args()
 
