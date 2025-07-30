@@ -92,7 +92,7 @@ def main():
                         dataset_group=grp,
                         freq=meta["FREQ"],
                         horizon=meta["H"],
-                        window_size=meta["H"],
+                        window_size=meta["H"] * 2,
                     )
 
             # leave-one-out
@@ -151,6 +151,7 @@ def main():
                     mode="out_domain_coreset",
                     dataset_source=dataset_source,
                     dataset_group_source=dataset_group,
+                    model_list=model_list,
                 )
 
                 heldout_mp = ModelPipeline(target_data_pipeline)

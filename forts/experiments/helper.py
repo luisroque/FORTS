@@ -37,6 +37,8 @@ def check_results_exist(
         results_folder = get_gcs_path("results/test_results")
     elif finetune:
         results_folder = get_gcs_path("results/results_forecast_fine_tuning")
+    elif mode == "out_domain" and dataset_source == "MIXED":
+        results_folder = get_gcs_path("results/results_forecast_coreset")
     else:
         results_folder = get_gcs_path(f"results/results_forecast_{mode}")
 

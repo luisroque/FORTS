@@ -25,7 +25,7 @@ def get_data_pipeline(dataset_name, subgroup):
         dataset_group=dataset_group,
         freq=freq,
         horizon=h,
-        window_size=h,
+        window_size=h * 2,
     )
 
 

@@ -109,6 +109,7 @@ class ModelPipeline(_ModelListMixin):
         mode="in_domain",
         test_mode: bool = False,
         max_steps: int = 1000,
+        model_list=None,
     ):
         """
         Trains and hyper-tunes all six models.
@@ -140,7 +141,8 @@ class ModelPipeline(_ModelListMixin):
         num_cpus = os.cpu_count()
         gpus = 1 if torch.cuda.is_available() else 0
 
-        model_list = self.get_model_list()
+        if model_list is None:
+            model_list = self.get_model_list()
 
         weights_folder = get_model_weights_path()
         if test_mode:

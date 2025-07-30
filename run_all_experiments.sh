@@ -51,7 +51,7 @@ run_all() {
 # --- Main Script Logic ---
 
 usage() {
-    echo "Usage: $0 [experiment_name] [--use-gpu]"
+    echo "Usage: $0 [experiment_name] [--use-gpu] [--model MODEL_NAME]"
     echo "Available experiments: basic, transfer, transfer_finetune, coreset, coreset_finetune, all"
     echo "If 'all' or no experiment is specified, all experiments will be run."
     exit 1
