@@ -47,10 +47,11 @@ run_all() {
     echo "All experiments complete."
 }
 
+
 # --- Main Script Logic ---
 
 usage() {
-    echo "Usage: $0 [experiment_name]"
+    echo "Usage: $0 [experiment_name] [--use-gpu]"
     echo "Available experiments: basic, transfer, transfer_finetune, coreset, coreset_finetune, all"
     echo "If 'all' or no experiment is specified, all experiments will be run."
     exit 1
@@ -62,28 +63,31 @@ if [ -z "$1" ]; then
     exit 0
 fi
 
+experiment="$1"
+shift  # Remove the experiment name from the argument list
+
 # Run the specified experiment.
-case "$1" in
+case "$experiment" in
     basic)
-        run_basic_forecasting
+        run_basic_forecasting "$@"
         ;;
     transfer)
-        run_transfer_learning
+        run_transfer_learning "$@"
         ;;
     transfer_finetune)
-        run_transfer_learning_finetune
+        run_transfer_learning_finetune "$@"
         ;;
     coreset)
-        run_coreset
+        run_coreset "$@"
         ;;
     coreset_finetune)
-        run_coreset_finetune
+        run_coreset_finetune "$@"
         ;;
     all)
-        run_all
+        run_all "$@"
         ;;
     *)
-        echo "Error: Invalid experiment name '$1'."
+        echo "Error: Invalid experiment name '$experiment'."
         usage
         ;;
 esac

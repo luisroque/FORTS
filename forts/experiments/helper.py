@@ -86,7 +86,7 @@ def set_device(use_gpu: bool):
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
         os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
     else:
-        print("Using GPU if available")
+        print("Using GPU\n\n")
 
 
 def cmd_parser():
