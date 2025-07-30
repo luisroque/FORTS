@@ -8,7 +8,25 @@ import numpy as np
 import pandas as pd
 from pandas.api.types import CategoricalDtype
 
+from forts.experiments.helper import extract_frequency, extract_horizon
 from forts.load_data.config import DATASETS
+
+
+def get_data_pipeline(dataset_name, subgroup):
+    """
+    Initializes and returns a DataPipeline instance.
+    """
+    freq = extract_frequency(subgroup)
+    h = extract_horizon(subgroup)
+    dataset_group = subgroup[0]
+
+    return DataPipeline(
+        dataset_name=dataset_name,
+        dataset_group=dataset_group,
+        freq=freq,
+        horizon=h,
+        window_size=h,
+    )
 
 
 def build_mixed_trainval(pipelines, dataset_source, dataset_group):
@@ -25,6 +43,7 @@ def build_mixed_trainval(pipelines, dataset_source, dataset_group):
         long_frames.append(lf)
 
     mixed = pd.concat(long_frames, ignore_index=True)
+    mixed["ds"] = pd.to_datetime(mixed["ds"])
 
     num_series = mixed["unique_id"].nunique()
     avg_time_points = mixed.groupby("unique_id", observed=True).size().mean()
@@ -391,7 +410,8 @@ class DataPipeline:
 
             # mark each row with its fold (train, val, test, or skip)
             df["fold"] = df.groupby("unique_id", group_keys=False, observed=True).apply(
-                lambda g: self._mark_train_val_test(g, self.window_size, self.h)
+                lambda g: self._mark_train_val_test(g, self.window_size, self.h),
+                include_groups=False,
             )
 
             df = df[df["fold"] != "skip"]

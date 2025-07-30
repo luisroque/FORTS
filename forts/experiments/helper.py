@@ -1,6 +1,58 @@
 import argparse
 import os
 
+from forts.gcs_utils import gcs_path_exists, get_gcs_path
+
+
+def get_model_list():
+    """
+    Returns the list of models that are used in the experiments.
+    """
+    # Avoid circular import
+    from forts.model_pipeline.model_pipeline import _ModelListMixin
+
+    return _ModelListMixin().get_model_list()
+
+
+def check_results_exist(
+    dataset,
+    dataset_group,
+    model_name,
+    horizon,
+    mode,
+    finetune,
+    dataset_source=None,
+    dataset_group_source=None,
+    test_mode=False,
+):
+    if test_mode:
+        results_folder = get_gcs_path("results/test_results")
+    elif finetune:
+        results_folder = get_gcs_path("results/results_forecast_fine_tuning")
+    else:
+        results_folder = get_gcs_path(f"results/results_forecast_{mode}")
+
+    if mode == "basic_forecasting":
+        results_file = (
+            f"{results_folder}/{dataset}_{dataset_group}_{model_name}_{horizon}.json"
+        )
+    elif dataset_source:
+        if finetune:
+            results_file = (
+                f"{results_folder}/{dataset}_{dataset_group}_{model_name}_{horizon}_"
+                f"trained_on_{dataset_source}_{dataset_group_source}_finetuning.json"
+            )
+        else:
+            results_file = (
+                f"{results_folder}/{dataset}_{dataset_group}_{model_name}_{horizon}_"
+                f"trained_on_{dataset_source}_{dataset_group_source}.json"
+            )
+    else:
+        results_file = (
+            f"{results_folder}/{dataset}_{dataset_group}_{model_name}_{horizon}.json"
+        )
+    return gcs_path_exists(results_file), results_file
+
 
 def extract_frequency(dataset_group):
     """Safely extracts frequency from dataset group."""
