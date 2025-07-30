@@ -10,31 +10,31 @@ set -e
 
 run_basic_forecasting() {
     echo "Running basic forecasting..."
-    python -m forts.experiments.run_pipeline --basic-forecasting
+    python -m forts.experiments.run_pipeline --basic-forecasting "$@"
     echo "Basic forecasting complete."
 }
 
 run_transfer_learning() {
     echo "Running transfer learning..."
-    python -m forts.experiments.run_pipeline --transfer-learning
+    python -m forts.experiments.run_pipeline --transfer-learning "$@"
     echo "Transfer learning complete."
 }
 
 run_transfer_learning_finetune() {
     echo "Running transfer learning with fine-tuning..."
-    python -m forts.experiments.run_pipeline --transfer-learning --finetune
+    python -m forts.experiments.run_pipeline --transfer-learning --finetune "$@"
     echo "Transfer learning with fine-tuning complete."
 }
 
 run_coreset() {
     echo "Running coreset..."
-    python -m forts.experiments.run_pipeline --coreset
+    python -m forts.experiments.run_pipeline --coreset "$@"
     echo "Coreset complete."
 }
 
 run_coreset_finetune() {
     echo "Running coreset with fine-tuning..."
-    python -m forts.experiments.run_pipeline --coreset --finetune
+    python -m forts.experiments.run_pipeline --coreset --finetune "$@"
     echo "Coreset with fine-tuning complete."
 }
 
