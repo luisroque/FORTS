@@ -3,15 +3,15 @@
 # A script to build, push, and run an experiment on GCP Vertex AI.
 #
 # Usage:
-#   ./run_gcp_job.sh [experiment_name] [machine_type]
+#   ./run_gcp_job.sh [experiment_name] [machine_type] [additional_args...]
 #
 # Arguments:
 #   experiment_name: The experiment to run from run_all_experiments.sh
-#                    (e.g., basic, coreset, transfer_finetune).
-#                    Defaults to 'all'.
+#                    (e.g., basic, coreset, transfer_finetune). Defaults to 'all'.
 #   machine_type:    The machine profile to use for the job.
-#                    Options: cpu-medium, cpu-fast, gpu-medium, gpu-fast.
-#                    Defaults to 'cpu-medium'.
+#                    Options: cpu-medium, cpu-fast, gpu-medium, gpu-fast. Defaults to 'cpu-medium'.
+#   additional_args: Any additional arguments to pass to the experiment script.
+#                    For example, `--model AutoNHITS`.
 
 # Exit immediately if a command exits with a non-zero status.
 set -e
@@ -41,8 +41,11 @@ gcloud auth configure-docker "${FORTS_GCP_REGION}-docker.pkg.dev" --quiet
 # --- Arguments ---
 EXPERIMENT_NAME=${1:-all}
 MACHINE_TYPE_KEY=${2:-cpu-medium} # Default to cpu-medium
+shift 2
+ADDITIONAL_ARGS=("$@")
 
 # --- Machine Type Mapping ---
+GPU_FLAG=""
 case "$MACHINE_TYPE_KEY" in
     cpu-medium)
         MACHINE_SPEC="machine-type=n1-standard-8"
@@ -52,9 +55,11 @@ case "$MACHINE_TYPE_KEY" in
         ;;
     gpu-medium)
         MACHINE_SPEC="machine-type=n1-standard-8,accelerator-type=NVIDIA_TESLA_T4,accelerator-count=1"
+        GPU_FLAG="--use-gpu"
         ;;
     gpu-fast)
         MACHINE_SPEC="machine-type=n1-standard-16,accelerator-type=NVIDIA_L4,accelerator-count=1"
+        GPU_FLAG="--use-gpu"
         ;;
     *)
         echo "Error: Invalid machine type '$MACHINE_TYPE_KEY'."
@@ -64,7 +69,15 @@ case "$MACHINE_TYPE_KEY" in
 esac
 
 # --- Job Setup ---
-JOB_DISPLAY_NAME="forts-${EXPERIMENT_NAME}-${MACHINE_TYPE_KEY}-$(date +%Y%m%d-%H%M%S)"
+MODEL_NAME_PART=""
+if [[ " ${ADDITIONAL_ARGS[*]} " =~ " --model " ]]; then
+    # Extract model name for a more descriptive job name
+    MODEL_NAME=$(echo "${ADDITIONAL_ARGS[@]}" | grep -oP '(?<=--model )[^ ]+')
+    if [ -n "$MODEL_NAME" ]; then
+        MODEL_NAME_PART="-${MODEL_NAME}"
+    fi
+fi
+JOB_DISPLAY_NAME="forts-${EXPERIMENT_NAME}${MODEL_NAME_PART}-${MACHINE_TYPE_KEY}-$(date +%Y%m%d-%H%M%S)"
 DOCKER_IMAGE_URI="${FORTS_GCP_REGION}-docker.pkg.dev/${FORTS_GCP_PROJECT_ID}/${FORTS_AR_REPO_NAME}/${FORTS_DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG:-latest}"
 SERVICE_ACCOUNT_EMAIL="vertex-ai-runner@${FORTS_GCP_PROJECT_ID}.iam.gserviceaccount.com"
 
@@ -92,7 +105,7 @@ gcloud ai custom-jobs create \
   --region=${FORTS_GCP_REGION} \
   --display-name=${JOB_DISPLAY_NAME} \
   --worker-pool-spec="${MACHINE_SPEC},replica-count=1,container-image-uri=${DOCKER_IMAGE_URI}" \
-  --args="${EXPERIMENT_NAME}" \
+  --args="$(echo "${EXPERIMENT_NAME} ${GPU_FLAG} ${ADDITIONAL_ARGS[*]}")" \
   --service-account=${SERVICE_ACCOUNT_EMAIL}
 
 echo ""
