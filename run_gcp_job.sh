@@ -72,7 +72,7 @@ esac
 MODEL_NAME_PART=""
 if [[ " ${ADDITIONAL_ARGS[*]} " =~ " --model " ]]; then
     # Extract model name for a more descriptive job name
-    MODEL_NAME=$(echo "${ADDITIONAL_ARGS[@]}" | grep -oP '(?<=--model )[^ ]+')
+    MODEL_NAME=$(echo "${ADDITIONAL_ARGS[@]}" | awk -F'--model ' '{print $2}' | awk '{print $1}')
     if [ -n "$MODEL_NAME" ]; then
         MODEL_NAME_PART="-${MODEL_NAME}"
     fi
