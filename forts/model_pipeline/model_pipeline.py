@@ -101,6 +101,43 @@ class ModelPipeline(_ModelListMixin):
 
         self.models = {}
 
+    def _pad_for_unsupported_models(
+        self, df: pd.DataFrame, required_length: int
+    ) -> pd.DataFrame:
+        """
+        Manually pads the start of each time series for models that
+        do not support start_padding_enabled, only if the series
+        is shorter than the required_length.
+        """
+        if df.empty:
+            return df
+
+        padded_dfs = []
+        for uid, group in df.groupby("unique_id"):
+            group = group.sort_values("ds")
+            current_length = len(group)
+
+            if current_length < required_length:
+                padding_size = required_length - current_length
+                first_ds = group["ds"].iloc[0]
+                first_y = group["y"].iloc[0]
+
+                pad_dates = pd.date_range(
+                    end=first_ds, periods=padding_size + 1, freq=self.freq
+                )[:-1]
+
+                if not pad_dates.empty:
+                    pad_df = pd.DataFrame(
+                        {"unique_id": uid, "ds": pad_dates, "y": first_y}
+                    )
+                    padded_dfs.append(pd.concat([pad_df, group], ignore_index=True))
+                else:
+                    padded_dfs.append(group)
+            else:
+                padded_dfs.append(group)
+
+        return pd.concat(padded_dfs, ignore_index=True)
+
     def hyper_tune_and_train(
         self,
         dataset_source,
@@ -138,8 +175,13 @@ class ModelPipeline(_ModelListMixin):
             trainval_long = self.trainval_long
             mode_suffix = ""
 
-        num_cpus = os.cpu_count()
+        num_cpus = os.cpu_count() - 1 if os.cpu_count() > 1 else 1
         gpus = 1 if torch.cuda.is_available() else 0
+
+        print(
+            f"Available resources: {os.cpu_count()} CPUs, {torch.cuda.device_count()} GPUs"
+        )
+        print(f"Using {num_cpus} CPUs and {gpus} GPUs for training.")
 
         if model_list is None:
             model_list = self.get_model_list()
@@ -191,6 +233,22 @@ class ModelPipeline(_ModelListMixin):
 
             nf_save_path = f"{save_dir}/{dataset_source}_{dataset_group_source}_{name}_neuralforecast"
 
+            local_trainval_long = trainval_long.copy()
+            if name in ("AutoTSMixer", "AutoiTransformer"):
+                # These models do not support start_padding_enabled, so we pad manually
+                # We need to determine the max input_size that will be tuned
+                if "input_size" in base_config and isinstance(
+                    base_config["input_size"], tune.search.sample.Categorical
+                ):
+                    max_input_size = max(base_config["input_size"].categories)
+                else:
+                    max_input_size = self.h * 2
+
+                required_length = max_input_size + self.h
+                local_trainval_long = self._pad_for_unsupported_models(
+                    local_trainval_long, required_length
+                )
+
             try:
                 print(
                     f"Attempting to load saved model for {name} from {nf_save_path}..."
@@ -207,7 +265,7 @@ class ModelPipeline(_ModelListMixin):
                 auto_model = ModelClass(**init_kwargs)
                 model = CustomNeuralForecast(models=[auto_model], freq=self.freq)
                 model.fit(
-                    df=trainval_long,
+                    df=local_trainval_long,
                     val_size=self.h,
                 )
 
