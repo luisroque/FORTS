@@ -4,6 +4,9 @@ import pandas as pd
 import pytest
 from ray import tune
 
+import forts
+from forts.data_pipeline.data_pipeline_setup import DataPipeline
+from forts.experiments.helper import _pad_for_unsupported_models
 from forts.model_pipeline.model_pipeline import AutoiTransformer, ModelPipeline
 
 
@@ -35,12 +38,11 @@ def mock_data_pipeline():
 
 
 def test_conditional_padding(mock_data_pipeline):
-    pipeline = ModelPipeline(mock_data_pipeline)
     df = mock_data_pipeline.original_trainval_long
-
+    freq = mock_data_pipeline.freq
     required_length = 10
 
-    padded_df = pipeline._pad_for_unsupported_models(df, required_length)
+    padded_df = _pad_for_unsupported_models(df, freq, required_length)
 
     padded_lengths = padded_df.groupby("unique_id").size()
 
@@ -84,3 +86,124 @@ def test_itransformer_with_short_series_and_padding(
             )
         except Exception as e:
             pytest.fail(f"hyper_tune_and_train raised an exception with padding: {e}")
+
+
+def test_coreset_e2e_with_mixed_freq_padding(mocker, tmp_path):
+    """
+    Tests that the coreset experiment runs end-to-end with AutoiTransformer
+    when source datasets have mixed frequencies. This confirms that each dataset
+    is padded correctly with its own frequency before being mixed.
+    """
+    mocker.patch("sys.argv", ["", "--coreset", "--model", "AutoiTransformer"])
+    mocker.patch(
+        "forts.model_pipeline.model_pipeline.get_model_weights_path",
+        return_value=tmp_path,
+    )
+    mocker.patch("forts.model_pipeline.model_pipeline.gcs_write_csv")
+    mocker.patch("forts.model_pipeline.core.core_extension.CustomNeuralForecast.save")
+    mocker.patch("forts.experiments.run_pipeline.evaluation_pipeline_forts_forecast")
+    mocker.patch(
+        "forts.experiments.run_pipeline.check_results_exist",
+        return_value=(False, "dummy_path"),
+    )
+    pad_spy = mocker.spy(forts.experiments.run_pipeline, "_pad_for_unsupported_models")
+
+    coreset_dataset_group = {
+        "Tourism": {"Monthly": {"FREQ": "ME", "H": 1}},
+        "Traffic": {"Daily": {"FREQ": "D", "H": 1}},
+        "M1": {"Quarterly": {"FREQ": "QE", "H": 1}},
+    }
+    mocker.patch(
+        "forts.experiments.run_pipeline.DATASET_GROUP_FREQ", coreset_dataset_group
+    )
+    mock_dp_monthly = MagicMock(spec=DataPipeline)
+    mock_dp_monthly.h = 1
+    mock_dp_monthly.freq = "ME"
+    mock_dp_monthly.dataset_name = "Tourism"
+    mock_dp_monthly.dataset_group = "Monthly"
+    mock_dp_monthly.period = 12
+    mock_dp_monthly.original_trainval_long = pd.DataFrame(
+        {"unique_id": ["tourism1"], "ds": pd.to_datetime(["2023-01-31"]), "y": [1.0]}
+    )
+    mock_dp_monthly.original_trainval_long_basic_forecast = (
+        mock_dp_monthly.original_trainval_long
+    )
+    mock_dp_monthly.original_test_long = pd.DataFrame(columns=["unique_id", "ds", "y"])
+    mock_dp_monthly.original_test_long_basic_forecast = pd.DataFrame(
+        columns=["unique_id", "ds", "y"]
+    )
+
+    mock_dp_daily = MagicMock(spec=DataPipeline)
+    mock_dp_daily.h = 1
+    mock_dp_daily.freq = "D"
+    mock_dp_daily.dataset_name = "Traffic"
+    mock_dp_daily.dataset_group = "Daily"
+    mock_dp_daily.period = 365
+    mock_dp_daily.original_trainval_long = pd.DataFrame(
+        {"unique_id": ["traffic1"], "ds": pd.to_datetime(["2023-01-01"]), "y": [10.0]}
+    )
+    mock_dp_daily.original_trainval_long_basic_forecast = (
+        mock_dp_daily.original_trainval_long
+    )
+    mock_dp_daily.original_test_long = pd.DataFrame(columns=["unique_id", "ds", "y"])
+    mock_dp_daily.original_test_long_basic_forecast = pd.DataFrame(
+        columns=["unique_id", "ds", "y"]
+    )
+
+    mock_dp_quarterly = MagicMock(spec=DataPipeline)
+    mock_dp_quarterly.h = 1
+    mock_dp_quarterly.freq = "QE"
+    mock_dp_quarterly.dataset_name = "M1"
+    mock_dp_quarterly.dataset_group = "Quarterly"
+    mock_dp_quarterly.period = 4
+    mock_dp_quarterly.original_trainval_long = pd.DataFrame(
+        {"unique_id": ["m1_q1"], "ds": pd.to_datetime(["2023-03-31"]), "y": [100.0]}
+    )
+    mock_dp_quarterly.original_trainval_long_basic_forecast = (
+        mock_dp_quarterly.original_trainval_long
+    )
+    mock_dp_quarterly.original_test_long = pd.DataFrame(
+        columns=["unique_id", "ds", "y"]
+    )
+    mock_dp_quarterly.original_test_long_basic_forecast = pd.DataFrame(
+        columns=["unique_id", "ds", "y"]
+    )
+
+    def data_pipeline_side_effect(*args, **kwargs):
+        name = kwargs.get("dataset_name")
+        if name == "Tourism":
+            return mock_dp_monthly
+        if name == "Traffic":
+            return mock_dp_daily
+        if name == "M1":
+            return mock_dp_quarterly
+        return MagicMock()
+
+    mocker.patch(
+        "forts.experiments.run_pipeline.DataPipeline",
+        side_effect=data_pipeline_side_effect,
+    )
+    original_train_method = ModelPipeline.hyper_tune_and_train
+
+    def mocked_train_method(self, *args, **kwargs):
+        kwargs["max_evals"] = 1
+        kwargs["max_steps"] = 1
+        return original_train_method(self, *args, **kwargs)
+
+    mocker.patch(
+        "forts.model_pipeline.model_pipeline.ModelPipeline.hyper_tune_and_train",
+        side_effect=mocked_train_method,
+        autospec=True,
+    )
+    from forts.experiments.run_pipeline import main
+
+    try:
+        main()
+    except Exception as e:
+        pytest.fail(f"Coreset pipeline failed during end-to-end run: {e}")
+
+    assert pad_spy.call_count == 6
+    all_freqs = [call.kwargs["freq"] for call in pad_spy.call_args_list]
+    assert all_freqs.count("ME") == 2
+    assert all_freqs.count("D") == 2
+    assert all_freqs.count("QE") == 2

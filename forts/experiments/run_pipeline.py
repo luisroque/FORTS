@@ -10,6 +10,7 @@ from forts.data_pipeline.data_pipeline_setup import (
     get_data_pipeline,
 )
 from forts.experiments.helper import (
+    _pad_for_unsupported_models,
     check_results_exist,
     cmd_parser,
     extract_frequency,
@@ -81,6 +82,12 @@ def main():
         results = []
         model_list = get_model_list(args.model)
 
+        # Check if any model in the list requires manual padding
+        models_that_need_padding = {"AutoTSMixer", "AutoiTransformer"}
+        needs_padding = any(
+            model[0] in models_that_need_padding for model in model_list
+        )
+
         if args.coreset:
             LOO_RESULTS = []
 
@@ -124,11 +131,18 @@ def main():
                     continue
 
                 # gather the source pipelines except the held-out one
-                source_pipelines = [
-                    data_pipeline
-                    for ds, data_pipeline in all_data_pipelines.items()
-                    if ds != (target_ds, target_grp)
-                ]
+                source_pipelines = []
+                for ds, data_pipeline in all_data_pipelines.items():
+                    if ds != (target_ds, target_grp):
+                        if needs_padding:
+                            # For models that require manual padding, apply it before mixing
+                            padded_trainval = _pad_for_unsupported_models(
+                                df=data_pipeline.original_trainval_long,
+                                freq=data_pipeline.freq,
+                                required_length=data_pipeline.h * 2 + data_pipeline.h,
+                            )
+                            data_pipeline.original_trainval_long = padded_trainval
+                        source_pipelines.append(data_pipeline)
 
                 dataset_source = "MIXED"
                 dataset_group = f"ALL_BUT_{target_ds}_{target_grp}"

@@ -13,6 +13,7 @@ from neuralforecast.auto import (
 )
 from ray import tune
 
+from forts.experiments.helper import _pad_for_unsupported_models
 from forts.gcs_utils import gcs_write_csv, get_model_weights_path
 from forts.model_pipeline.core.core_extension import CustomNeuralForecast
 from forts.visualization.model_visualization import plot_generated_vs_original
@@ -100,43 +101,6 @@ class ModelPipeline(_ModelListMixin):
         )
 
         self.models = {}
-
-    def _pad_for_unsupported_models(
-        self, df: pd.DataFrame, required_length: int
-    ) -> pd.DataFrame:
-        """
-        Manually pads the start of each time series for models that
-        do not support start_padding_enabled, only if the series
-        is shorter than the required_length.
-        """
-        if df.empty:
-            return df
-
-        padded_dfs = []
-        for uid, group in df.groupby("unique_id"):
-            group = group.sort_values("ds")
-            current_length = len(group)
-
-            if current_length < required_length:
-                padding_size = required_length - current_length
-                first_ds = group["ds"].iloc[0]
-                first_y = group["y"].iloc[0]
-
-                pad_dates = pd.date_range(
-                    end=first_ds, periods=padding_size + 1, freq=self.freq
-                )[:-1]
-
-                if not pad_dates.empty:
-                    pad_df = pd.DataFrame(
-                        {"unique_id": uid, "ds": pad_dates, "y": first_y}
-                    )
-                    padded_dfs.append(pd.concat([pad_df, group], ignore_index=True))
-                else:
-                    padded_dfs.append(group)
-            else:
-                padded_dfs.append(group)
-
-        return pd.concat(padded_dfs, ignore_index=True)
 
     def hyper_tune_and_train(
         self,
@@ -245,9 +209,10 @@ class ModelPipeline(_ModelListMixin):
                     max_input_size = self.h * 2
 
                 required_length = max_input_size + self.h
-                local_trainval_long = self._pad_for_unsupported_models(
-                    local_trainval_long, required_length
-                )
+                if self.freq != "mixed":
+                    local_trainval_long = _pad_for_unsupported_models(
+                        local_trainval_long, self.freq, required_length
+                    )
 
             try:
                 print(

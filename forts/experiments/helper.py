@@ -1,7 +1,45 @@
 import argparse
 import os
 
+import pandas as pd
+
 from forts.gcs_utils import gcs_path_exists, get_gcs_path
+
+
+def _pad_for_unsupported_models(
+    df: pd.DataFrame, freq: str, required_length: int
+) -> pd.DataFrame:
+    """
+    Manually pads the start of each time series for models that
+    do not support start_padding_enabled, only if the series
+    is shorter than the required_length.
+    """
+    if df.empty:
+        return df
+
+    padded_dfs = []
+    for uid, group in df.groupby("unique_id"):
+        group = group.sort_values("ds")
+        current_length = len(group)
+
+        if current_length < required_length:
+            padding_size = required_length - current_length
+            first_ds = group["ds"].iloc[0]
+            first_y = group["y"].iloc[0]
+
+            pad_dates = pd.date_range(
+                end=first_ds, periods=padding_size + 1, freq=freq
+            )[:-1]
+
+            if not pad_dates.empty:
+                pad_df = pd.DataFrame({"unique_id": uid, "ds": pad_dates, "y": first_y})
+                padded_dfs.append(pd.concat([pad_df, group], ignore_index=True))
+            else:
+                padded_dfs.append(group)
+        else:
+            padded_dfs.append(group)
+
+    return pd.concat(padded_dfs, ignore_index=True)
 
 
 def get_model_list(model_name=None):
