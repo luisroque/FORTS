@@ -6,6 +6,15 @@ set -e
 # --- Configuration ---
 # Environment variables are expected to be loaded by the calling script (run.sh)
 
+# --- Authenticate with GCP Service Account ---
+KEY_FILE="gcp-key.json"
+if [ ! -f "$KEY_FILE" ]; then
+    echo "Error: Service account key file '$KEY_FILE' not found in the root directory."
+    exit 1
+fi
+echo "--> Authenticating with GCP using service account from $KEY_FILE..."
+gcloud auth activate-service-account --key-file=$KEY_FILE
+
 # --- Function Definitions for Each Experiment ---
 
 run_basic_forecasting() {

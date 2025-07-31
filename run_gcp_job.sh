@@ -26,6 +26,18 @@ if [ -z "$FORTS_GCP_PROJECT_ID" ] || [ -z "$FORTS_GCP_REGION" ] || [ -z "$FORTS_
     exit 1
 fi
 
+# --- Authenticate with GCP Service Account ---
+KEY_FILE="gcp-key.json"
+if [ ! -f "$KEY_FILE" ]; then
+    echo "Error: Service account key file '$KEY_FILE' not found in the root directory."
+    exit 1
+fi
+echo "--> Authenticating with GCP using service account from $KEY_FILE..."
+gcloud auth activate-service-account --key-file=$KEY_FILE
+
+echo "--> Configuring Docker authentication for Artifact Registry..."
+gcloud auth configure-docker "${FORTS_GCP_REGION}-docker.pkg.dev" --quiet
+
 # --- Arguments ---
 EXPERIMENT_NAME=${1:-all}
 MACHINE_TYPE_KEY=${2:-cpu-medium} # Default to cpu-medium
