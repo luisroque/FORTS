@@ -175,7 +175,7 @@ class ModelPipeline(_ModelListMixin):
             trainval_long = self.trainval_long
             mode_suffix = ""
 
-        num_cpus = os.cpu_count() - 1 if os.cpu_count() > 1 else 1
+        num_cpus = os.cpu_count() - 3 if os.cpu_count() > 3 else 1
         gpus = 1 if torch.cuda.is_available() else 0
 
         print(
