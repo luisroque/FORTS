@@ -139,7 +139,9 @@ def main():
                             padded_trainval = _pad_for_unsupported_models(
                                 df=data_pipeline.original_trainval_long,
                                 freq=data_pipeline.freq,
-                                required_length=data_pipeline.h * 2 + data_pipeline.h,
+                                # The padding length must be determined by the target's horizon
+                                required_length=target_data_pipeline.h * 2
+                                + target_data_pipeline.h,
                             )
                             data_pipeline.original_trainval_long = padded_trainval
                         source_pipelines.append(data_pipeline)

@@ -6,15 +6,9 @@ set -e
 # --- Configuration ---
 # Environment variables are expected to be loaded by the calling script (run.sh)
 
-# --- Authenticate with GCP Service Account ---
-KEY_FILE="gcp-key.json"
-if [ ! -f "$KEY_FILE" ]; then
-    echo "Error: Service account key file '$KEY_FILE' not found in the root directory."
-    exit 1
-fi
-echo "--> Authenticating with GCP using service account from $KEY_FILE..."
-gcloud auth activate-service-account --key-file=$KEY_FILE
-
+# --- GCP Authentication ---
+# When running on Vertex AI, authentication is handled automatically by the
+# environment's service account. No manual authentication is needed.
 # --- Function Definitions for Each Experiment ---
 
 run_basic_forecasting() {

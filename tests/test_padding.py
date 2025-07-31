@@ -73,6 +73,7 @@ def test_itransformer_with_short_series_and_padding(
             return_value=str(tmp_path),
         ),
         patch("forts.model_pipeline.model_pipeline.gcs_write_csv", return_value=None),
+        patch("forts.model_pipeline.core.core_extension.CustomNeuralForecast.save"),
     ):
         try:
             pipeline.hyper_tune_and_train(
@@ -88,11 +89,12 @@ def test_itransformer_with_short_series_and_padding(
             pytest.fail(f"hyper_tune_and_train raised an exception with padding: {e}")
 
 
-def test_coreset_e2e_with_mixed_freq_padding(mocker, tmp_path):
+def test_coreset_e2e_with_mixed_freq_padding_and_large_horizon(mocker, tmp_path):
     """
     Tests that the coreset experiment runs end-to-end with AutoiTransformer
-    when source datasets have mixed frequencies. This confirms that each dataset
-    is padded correctly with its own frequency before being mixed.
+    when source datasets have mixed frequencies (Yearly, Monthly, Daily) and
+    the target dataset has a large horizon (h=24). This scenario is designed
+    to trigger the window size problem if padding is not handled correctly.
     """
     mocker.patch("sys.argv", ["", "--coreset", "--model", "AutoiTransformer"])
     mocker.patch(
@@ -109,21 +111,29 @@ def test_coreset_e2e_with_mixed_freq_padding(mocker, tmp_path):
     pad_spy = mocker.spy(forts.experiments.run_pipeline, "_pad_for_unsupported_models")
 
     coreset_dataset_group = {
-        "Tourism": {"Monthly": {"FREQ": "ME", "H": 1}},
-        "Traffic": {"Daily": {"FREQ": "D", "H": 1}},
-        "M1": {"Quarterly": {"FREQ": "QE", "H": 1}},
+        "M4": {"Monthly": {"FREQ": "ME", "H": 24}},
+        "Traffic": {"Daily": {"FREQ": "D", "H": 30}},
+        "M3": {"Yearly": {"FREQ": "YE", "H": 4}},
     }
     mocker.patch(
         "forts.experiments.run_pipeline.DATASET_GROUP_FREQ", coreset_dataset_group
     )
+
+    # --- Mock DataPipeline instances ---
     mock_dp_monthly = MagicMock(spec=DataPipeline)
-    mock_dp_monthly.h = 1
+    mock_dp_monthly.h = 24
     mock_dp_monthly.freq = "ME"
-    mock_dp_monthly.dataset_name = "Tourism"
+    mock_dp_monthly.dataset_name = "M4"
     mock_dp_monthly.dataset_group = "Monthly"
     mock_dp_monthly.period = 12
     mock_dp_monthly.original_trainval_long = pd.DataFrame(
-        {"unique_id": ["tourism1"], "ds": pd.to_datetime(["2023-01-31"]), "y": [1.0]}
+        {
+            "unique_id": ["m4_monthly1"] * 100,
+            "ds": pd.to_datetime(
+                pd.date_range(start="2015-01-01", periods=100, freq="ME")
+            ),
+            "y": range(100),
+        }
     )
     mock_dp_monthly.original_trainval_long_basic_forecast = (
         mock_dp_monthly.original_trainval_long
@@ -134,13 +144,19 @@ def test_coreset_e2e_with_mixed_freq_padding(mocker, tmp_path):
     )
 
     mock_dp_daily = MagicMock(spec=DataPipeline)
-    mock_dp_daily.h = 1
+    mock_dp_daily.h = 30
     mock_dp_daily.freq = "D"
     mock_dp_daily.dataset_name = "Traffic"
     mock_dp_daily.dataset_group = "Daily"
     mock_dp_daily.period = 365
     mock_dp_daily.original_trainval_long = pd.DataFrame(
-        {"unique_id": ["traffic1"], "ds": pd.to_datetime(["2023-01-01"]), "y": [10.0]}
+        {
+            "unique_id": ["traffic1"] * 100,
+            "ds": pd.to_datetime(
+                pd.date_range(start="2022-01-01", periods=100, freq="D")
+            ),
+            "y": range(100),
+        }
     )
     mock_dp_daily.original_trainval_long_basic_forecast = (
         mock_dp_daily.original_trainval_long
@@ -150,33 +166,37 @@ def test_coreset_e2e_with_mixed_freq_padding(mocker, tmp_path):
         columns=["unique_id", "ds", "y"]
     )
 
-    mock_dp_quarterly = MagicMock(spec=DataPipeline)
-    mock_dp_quarterly.h = 1
-    mock_dp_quarterly.freq = "QE"
-    mock_dp_quarterly.dataset_name = "M1"
-    mock_dp_quarterly.dataset_group = "Quarterly"
-    mock_dp_quarterly.period = 4
-    mock_dp_quarterly.original_trainval_long = pd.DataFrame(
-        {"unique_id": ["m1_q1"], "ds": pd.to_datetime(["2023-03-31"]), "y": [100.0]}
+    mock_dp_yearly = MagicMock(spec=DataPipeline)
+    mock_dp_yearly.h = 4
+    mock_dp_yearly.freq = "YE"
+    mock_dp_yearly.dataset_name = "M3"
+    mock_dp_yearly.dataset_group = "Yearly"
+    mock_dp_yearly.period = 1
+    mock_dp_yearly.original_trainval_long = pd.DataFrame(
+        {
+            "unique_id": ["m3_yearly1"] * 10,
+            "ds": pd.to_datetime(
+                pd.date_range(start="2013-01-01", periods=10, freq="YE")
+            ),
+            "y": range(10),
+        }
     )
-    mock_dp_quarterly.original_trainval_long_basic_forecast = (
-        mock_dp_quarterly.original_trainval_long
+    mock_dp_yearly.original_trainval_long_basic_forecast = (
+        mock_dp_yearly.original_trainval_long
     )
-    mock_dp_quarterly.original_test_long = pd.DataFrame(
-        columns=["unique_id", "ds", "y"]
-    )
-    mock_dp_quarterly.original_test_long_basic_forecast = pd.DataFrame(
+    mock_dp_yearly.original_test_long = pd.DataFrame(columns=["unique_id", "ds", "y"])
+    mock_dp_yearly.original_test_long_basic_forecast = pd.DataFrame(
         columns=["unique_id", "ds", "y"]
     )
 
     def data_pipeline_side_effect(*args, **kwargs):
         name = kwargs.get("dataset_name")
-        if name == "Tourism":
+        if name == "M4":
             return mock_dp_monthly
         if name == "Traffic":
             return mock_dp_daily
-        if name == "M1":
-            return mock_dp_quarterly
+        if name == "M3":
+            return mock_dp_yearly
         return MagicMock()
 
     mocker.patch(
@@ -206,4 +226,4 @@ def test_coreset_e2e_with_mixed_freq_padding(mocker, tmp_path):
     all_freqs = [call.kwargs["freq"] for call in pad_spy.call_args_list]
     assert all_freqs.count("ME") == 2
     assert all_freqs.count("D") == 2
-    assert all_freqs.count("QE") == 2
+    assert all_freqs.count("YE") == 2
