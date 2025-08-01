@@ -37,9 +37,10 @@ class M4Dataset(LoadDataset):
     horizons = [*horizons_map.values()]
     frequency = [*frequency_map.values()]
 
-    @classmethod
-    def load_data(cls, group, min_n_instances=None):
-        gcs_path = f"{cls.DATASET_PATH}/{group.lower()}.parquet"
+    def load(self, group=None, min_n_instances=None):
+        if group is None:
+            raise ValueError("The 'group' parameter is required for this dataset.")
+        gcs_path = f"{self.DATASET_PATH}/{group.lower()}.parquet"
         try:
             with get_gcs_fs().open(gcs_path, "rb") as f:
                 ds = pd.read_parquet(f)
@@ -50,6 +51,7 @@ class M4Dataset(LoadDataset):
             )
 
         if min_n_instances is not None:
-            ds = cls.prune_df_by_size(ds, min_n_instances)
+            ds = self.prune_df_by_size(ds, min_n_instances)
 
+        ds["ds"] = pd.to_datetime(ds["ds"])
         return ds

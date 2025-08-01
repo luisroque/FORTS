@@ -10,7 +10,6 @@ from forts.load_data.m4 import M4Dataset
 from forts.load_data.m5 import M5Dataset
 from forts.load_data.tourism import TourismDataset
 from forts.load_data.traffic import TrafficDataset
-from forts.load_data.trafficl import TrafficLDataset
 from forts.load_data.weather import WeatherDataset
 from forts.load_data.wiki2 import Wiki2Dataset
 
@@ -28,7 +27,6 @@ DATASETS = {
     "ETTm1": ETTm1Dataset,
     "ETTm2": ETTm2Dataset,
     "ECL": ECLDataset,
-    "TrafficL": TrafficLDataset,
     "Weather": WeatherDataset,
 }
 
@@ -43,11 +41,10 @@ DATASETS_FREQ = {
     "Wiki2": ["Daily"],
     "ETTh1": ["Hourly"],
     "ETTh2": ["Hourly"],
-    # "ETTm1": ["15T"],
-    # "ETTm2": ["15T"],
-    # "ECL": ["15T"],
-    # "TrafficL": ["15T"],
-    # "Weather": ["10M"],
+    "ETTm1": ["15T"],
+    "ETTm2": ["15T"],
+    "ECL": ["15T"],
+    "Weather": ["10M"],
 }
 
 N = [1, 2, 3, 4, 5, 6]

@@ -12,14 +12,15 @@ class TourismDataset(LoadDataset):
 
     frequency_pd = {"Yearly": "Y", "Quarterly": "QS", "Monthly": "ME"}
 
-    @classmethod
-    def load_data(cls, group):
-        assert group in cls.data_group
+    def load(self, group=None):
+        if group is None:
+            raise ValueError("The 'group' parameter is required for this dataset.")
+        assert group in self.data_group
 
         ds = {}
         gcs_fs = get_gcs_fs()
 
-        base_path = f"{cls.DATASET_PATH}/{cls.DIR_NAME}"
+        base_path = f"{self.DATASET_PATH}/{self.DIR_NAME}"
         train_path = f"{base_path}/{group.lower()}_in.csv"
         test_path = f"{base_path}/{group.lower()}_oos.csv"
 
@@ -55,7 +56,7 @@ class TourismDataset(LoadDataset):
         idx = pd.date_range(
             end=pd.Timestamp("2023-11-01"),
             periods=max_len,
-            freq=cls.frequency_pd[group],
+            freq=self.frequency_pd[group],
         )
 
         ds = {

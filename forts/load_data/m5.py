@@ -8,9 +8,8 @@ class M5Dataset(LoadDataset):
     DATASET_NAME = "M5"
     DATASET_PATH = f"{LoadDataset.DATASET_PATH}/m5"
 
-    @classmethod
-    def load_data(cls, group=None):
-        gcs_path = f"{cls.DATASET_PATH}/daily.parquet"
+    def load(self, group=None):
+        gcs_path = f"{self.DATASET_PATH}/daily.parquet"
         try:
             with get_gcs_fs().open(gcs_path, "rb") as f:
                 ds = pd.read_parquet(f)

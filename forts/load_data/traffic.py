@@ -6,11 +6,9 @@ from forts.load_data.base import LoadDataset
 
 class TrafficDataset(LoadDataset):
     DATASET_NAME = "Traffic"
-    DATASET_PATH = f"{LoadDataset.DATASET_PATH}/Traffic"
+    DATASET_PATH = f"{LoadDataset.DATASET_PATH}"
 
-    @classmethod
-    def load_data(cls, group):
-        self = cls()
-        ds, *_ = HierarchicalData.load(cls.DATASET_PATH, group=self.DATASET_NAME)
+    def load(self, group=None):
+        ds, *_ = HierarchicalData.load(self.DATASET_PATH, self.DATASET_NAME)
         ds["ds"] = pd.to_datetime(ds["ds"])
         return ds

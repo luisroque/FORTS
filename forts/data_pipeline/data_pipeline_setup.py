@@ -135,11 +135,11 @@ class DataPipeline:
 
     @staticmethod
     def load_data(dataset_name: str, group: str) -> Tuple[pd.DataFrame, int, str]:
-        data_cls = DATASETS[dataset_name]
+        data_cls = DATASETS[dataset_name]()
         print(dataset_name, group)
 
         try:
-            ds = data_cls.load_data(group)
+            ds = data_cls.load(group=group)
 
             # for testing purposes only
             # ds = ds[ds["unique_id"].isin(ds["unique_id"].unique()[:20])]

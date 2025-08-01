@@ -51,8 +51,7 @@ class LoadDataset:
     frequency = [*frequency_map.values()]
     horizons = [*horizons_map.values()]
 
-    @classmethod
-    def load_data(cls, group):
+    def load(self, group=None):
         pass
 
     @staticmethod
