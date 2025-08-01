@@ -98,6 +98,19 @@ docker build --platform linux/amd64 \
   -t ${DOCKER_IMAGE_URI} .
 docker push ${DOCKER_IMAGE_URI}
 
+# --- Format arguments for Vertex AI ---
+ALL_JOB_ARGS=("${EXPERIMENT_NAME}")
+if [[ -n "$GPU_FLAG" ]]; then
+    ALL_JOB_ARGS+=("${GPU_FLAG}")
+fi
+if [[ ${#ADDITIONAL_ARGS[@]} -gt 0 ]]; then
+    ALL_JOB_ARGS+=("${ADDITIONAL_ARGS[@]}")
+fi
+
+# Format as a comma-separated list of quoted strings for the --args flag
+GCLOUD_ARGS=$(printf '"%s",' "${ALL_JOB_ARGS[@]}")
+GCLOUD_ARGS=${GCLOUD_ARGS%,} # Remove trailing comma
+
 # 2. Submit the Vertex AI Training Job
 echo "--> Submitting the Vertex AI Custom Job..."
 gcloud ai custom-jobs create \
@@ -105,7 +118,7 @@ gcloud ai custom-jobs create \
   --region=${FORTS_GCP_REGION} \
   --display-name=${JOB_DISPLAY_NAME} \
   --worker-pool-spec="${MACHINE_SPEC},replica-count=1,container-image-uri=${DOCKER_IMAGE_URI}" \
-  --args="$(echo "${EXPERIMENT_NAME} ${GPU_FLAG} ${ADDITIONAL_ARGS[*]}")" \
+  --args=${GCLOUD_ARGS} \
   --service-account=${SERVICE_ACCOUNT_EMAIL}
 
 echo ""
