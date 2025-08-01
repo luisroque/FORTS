@@ -107,8 +107,9 @@ if [[ ${#ADDITIONAL_ARGS[@]} -gt 0 ]]; then
     ALL_JOB_ARGS+=("${ADDITIONAL_ARGS[@]}")
 fi
 
-# Format as a comma-separated list of quoted strings for the --args flag
-GCLOUD_ARGS=$(printf '"%s",' "${ALL_JOB_ARGS[@]}")
+# Format as a comma-separated list for the --args flag.
+# gcloud expects a single string with comma-separated values.
+GCLOUD_ARGS=$(printf '%s,' "${ALL_JOB_ARGS[@]}")
 GCLOUD_ARGS=${GCLOUD_ARGS%,} # Remove trailing comma
 
 # 2. Submit the Vertex AI Training Job
@@ -118,7 +119,7 @@ gcloud ai custom-jobs create \
   --region=${FORTS_GCP_REGION} \
   --display-name=${JOB_DISPLAY_NAME} \
   --worker-pool-spec="${MACHINE_SPEC},replica-count=1,container-image-uri=${DOCKER_IMAGE_URI}" \
-  --args=${GCLOUD_ARGS} \
+  --args="${GCLOUD_ARGS}" \
   --service-account=${SERVICE_ACCOUNT_EMAIL}
 
 echo ""
