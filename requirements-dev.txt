@@ -1,4 +1,5 @@
-pre-commit==4.2.0
-pytest==8.4.1
-pytest-mock
-python-dotenv
+pytest
+pytest-cov
+pyarrow
+pre-commit
+gcsfs

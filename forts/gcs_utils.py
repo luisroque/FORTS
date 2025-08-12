@@ -1,3 +1,4 @@
+import logging
 import os
 
 import pandas as pd
@@ -30,9 +31,22 @@ _gcs_fs = None
 def get_gcs_fs():
     """
     Returns a singleton instance of the GCSFileSystem.
+    Authentication is handled automatically by the gcsfs library. For server-based
+    authentication, ensure the `GOOGLE_APPLICATION_CREDENTIALS` environment
+    variable is set to the path of your service account key file.
     """
     global _gcs_fs
     if _gcs_fs is None:
+        service_account_file = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+        if service_account_file:
+            logging.info(
+                f"Using service account credentials from {service_account_file}"
+            )
+        else:
+            logging.warning(
+                "GOOGLE_APPLICATION_CREDENTIALS environment variable not set. "
+                "Falling back to default authentication (e.g., gcloud ADC)."
+            )
         _gcs_fs = GCSFileSystem()
     return _gcs_fs
 
@@ -97,12 +111,29 @@ def gcs_read_csv(gcs_path: str) -> pd.DataFrame:
         return pd.read_csv(f)
 
 
+def _save_to_local_fallback(gcs_path: str, data, writer_func):
+    """
+    Saves data to a local fallback directory when GCS is unavailable.
+    """
+    fallback_dir = "gcs_fallback"
+    local_path = os.path.join(fallback_dir, gcs_path.replace("gs://", ""))
+    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+    logging.warning(f"GCS not available. Saving to local fallback: {local_path}")
+    writer_func(data, local_path)
+
+
 def gcs_write_csv(df: pd.DataFrame, gcs_path: str):
     """
     Writes a pandas DataFrame to a CSV file in GCS.
+    If GCS is unavailable, it saves the file to a local fallback directory.
     """
-    with get_gcs_fs().open(gcs_path, "w") as f:
-        df.to_csv(f, index=False)
+    try:
+        with get_gcs_fs().open(gcs_path, "w") as f:
+            df.to_csv(f, index=False)
+        logging.info(f"Successfully wrote to GCS: {gcs_path}")
+    except Exception as e:
+        logging.error(f"Failed to write to GCS at {gcs_path}: {e}")
+        _save_to_local_fallback(gcs_path, df, lambda d, p: d.to_csv(p, index=False))
 
 
 def gcs_read_json(gcs_path: str) -> dict:
@@ -118,11 +149,19 @@ def gcs_read_json(gcs_path: str) -> dict:
 def gcs_write_json(data: dict, gcs_path: str):
     """
     Writes a dictionary to a JSON file in GCS.
+    If GCS is unavailable, it saves the file to a local fallback directory.
     """
     import json
 
-    with get_gcs_fs().open(gcs_path, "w") as f:
-        json.dump(data, f, indent=4)
+    try:
+        with get_gcs_fs().open(gcs_path, "w") as f:
+            json.dump(data, f, indent=4)
+        logging.info(f"Successfully wrote to GCS: {gcs_path}")
+    except Exception as e:
+        logging.error(f"Failed to write to GCS at {gcs_path}: {e}")
+        _save_to_local_fallback(
+            gcs_path, data, lambda d, p: json.dump(d, open(p, "w"), indent=4)
+        )
 
 
 def gcs_delete_directory(gcs_path: str):

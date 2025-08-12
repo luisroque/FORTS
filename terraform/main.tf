@@ -80,6 +80,12 @@ resource "google_storage_bucket_iam_member" "vertex_ai_runner_storage_admin" {
   member = "serviceAccount:${google_service_account.vertex_ai_runner.email}"
 }
 
+resource "google_storage_bucket_iam_member" "artifact_pusher_storage_admin" {
+  bucket = google_storage_bucket.forts_bucket.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:artifact-pusher@${var.gcp_project_id}.iam.gserviceaccount.com"
+}
+
 resource "google_service_account_iam_member" "vertex_ai_runner_user" {
   service_account_id = google_service_account.vertex_ai_runner.name
   role               = "roles/iam.serviceAccountUser"
