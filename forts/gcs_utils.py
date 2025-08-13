@@ -87,10 +87,20 @@ def get_datasets_path():
 
 def gcs_path_exists(gcs_path: str) -> bool:
     """
-    Checks if a path exists in GCS.
+    Checks if a path exists in GCS or in the local fallback.
     """
-    fs = get_gcs_fs()
-    return fs.exists(gcs_path)
+    local_path = _get_local_fallback_path(gcs_path)
+    if os.path.exists(local_path):
+        return True
+
+    try:
+        fs = get_gcs_fs()
+        return fs.exists(gcs_path)
+    except Exception as e:
+        logging.warning(
+            f"Failed to check GCS path {gcs_path} existence, returning False. Error: {e}"
+        )
+        return False
 
 
 def gcs_list_files(gcs_path: str, extension: str = ".json") -> list:
@@ -103,19 +113,97 @@ def gcs_list_files(gcs_path: str, extension: str = ".json") -> list:
     return [f"gs://{f}" for f in fs.glob(f"{gcs_path}/*{extension}")]
 
 
+def _get_local_fallback_path(gcs_path: str) -> str:
+    """
+    Converts a GCS path to its corresponding local fallback path.
+    """
+    fallback_dir = os.environ.get("FORTS_FALLBACK_DIR", "gcs_fallback")
+    return os.path.join(fallback_dir, gcs_path.replace("gs://", ""))
+
+
+def _read_from_local_fallback(local_path: str, reader_func):
+    """
+    Reads data from the local fallback path using the provided reader function.
+    """
+    logging.info(f"Reading from local fallback: {local_path}")
+    return reader_func(local_path)
+
+
+def _gcs_read_with_fallback(gcs_path: str, gcs_reader_func, local_reader_func):
+    """
+    Tries to read from the local fallback first, then from GCS.
+    """
+    local_path = _get_local_fallback_path(gcs_path)
+    if os.path.exists(local_path):
+        try:
+            return _read_from_local_fallback(local_path, local_reader_func)
+        except Exception as e:
+            logging.warning(
+                f"Local fallback file found at {local_path}, but failed to read. "
+                f"Attempting to read from GCS. Error: {e}"
+            )
+
+    try:
+        return gcs_reader_func(gcs_path)
+    except Exception as e:
+        logging.error(f"Failed to read from GCS at {gcs_path}: {e}")
+        raise
+
+
 def gcs_read_csv(gcs_path: str) -> pd.DataFrame:
     """
-    Reads a CSV file from GCS into a pandas DataFrame.
+    Reads a CSV file from GCS into a pandas DataFrame, with a local fallback.
     """
-    with get_gcs_fs().open(gcs_path, "r") as f:
-        return pd.read_csv(f)
+
+    def gcs_reader(path):
+        with get_gcs_fs().open(path, "r") as f:
+            return pd.read_csv(f)
+
+    def local_reader(path):
+        return pd.read_csv(path)
+
+    return _gcs_read_with_fallback(gcs_path, gcs_reader, local_reader)
+
+
+def gcs_read_parquet(gcs_path: str) -> pd.DataFrame:
+    """
+    Reads a Parquet file from GCS into a pandas DataFrame, with a local fallback.
+    """
+
+    def gcs_reader(path):
+        with get_gcs_fs().open(path, "rb") as f:
+            return pd.read_parquet(f)
+
+    def local_reader(path):
+        return pd.read_parquet(path)
+
+    return _gcs_read_with_fallback(gcs_path, gcs_reader, local_reader)
+
+
+def gcs_open_with_fallback(gcs_path: str, mode: str = "rb"):
+    """
+    Opens a file from GCS or the local fallback, returning a file-like object.
+    It's the caller's responsibility to close the file handle.
+    """
+    local_path = _get_local_fallback_path(gcs_path)
+    if os.path.exists(local_path):
+        logging.info(f"Opening local fallback file: {local_path}")
+        return open(local_path, mode)
+
+    try:
+        logging.info(f"Opening GCS file: {gcs_path}")
+        fs = get_gcs_fs()
+        return fs.open(gcs_path, mode)
+    except Exception as e:
+        logging.error(f"Failed to open GCS file at {gcs_path}: {e}")
+        raise
 
 
 def _save_to_local_fallback(gcs_path: str, data, writer_func):
     """
     Saves data to a local fallback directory when GCS is unavailable.
     """
-    fallback_dir = "gcs_fallback"
+    fallback_dir = os.environ.get("FORTS_FALLBACK_DIR", "gcs_fallback")
     local_path = os.path.join(fallback_dir, gcs_path.replace("gs://", ""))
     os.makedirs(os.path.dirname(local_path), exist_ok=True)
     logging.warning(f"GCS not available. Saving to local fallback: {local_path}")
@@ -138,12 +226,19 @@ def gcs_write_csv(df: pd.DataFrame, gcs_path: str):
 
 def gcs_read_json(gcs_path: str) -> dict:
     """
-    Reads a JSON file from GCS.
+    Reads a JSON file from GCS, with a local fallback.
     """
     import json
 
-    with get_gcs_fs().open(gcs_path, "r") as f:
-        return json.load(f)
+    def gcs_reader(path):
+        with get_gcs_fs().open(path, "r") as f:
+            return json.load(f)
+
+    def local_reader(path):
+        with open(path, "r") as f:
+            return json.load(f)
+
+    return _gcs_read_with_fallback(gcs_path, gcs_reader, local_reader)
 
 
 def gcs_write_json(data: dict, gcs_path: str):

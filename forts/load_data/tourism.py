@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from forts.gcs_utils import get_gcs_fs
+from forts.gcs_utils import gcs_read_csv
 from forts.load_data.base import LoadDataset
 
 
@@ -18,17 +18,14 @@ class TourismDataset(LoadDataset):
         assert group in self.data_group
 
         ds = {}
-        gcs_fs = get_gcs_fs()
 
         base_path = f"{self.DATASET_PATH}/{self.DIR_NAME}"
         train_path = f"{base_path}/{group.lower()}_in.csv"
         test_path = f"{base_path}/{group.lower()}_oos.csv"
 
         try:
-            with gcs_fs.open(train_path) as f:
-                train = pd.read_csv(f, header=0, delimiter=",")
-            with gcs_fs.open(test_path) as f:
-                test = pd.read_csv(f, header=0, delimiter=",")
+            train = gcs_read_csv(train_path)
+            test = gcs_read_csv(test_path)
         except FileNotFoundError:
             raise FileNotFoundError(
                 f"Dataset not found at {base_path}. "

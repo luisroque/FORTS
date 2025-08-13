@@ -14,7 +14,11 @@ from neuralforecast.auto import (
 from ray import tune
 
 from forts.experiments.helper import _pad_for_unsupported_models
-from forts.gcs_utils import gcs_write_csv, get_model_weights_path
+from forts.gcs_utils import (
+    _get_local_fallback_path,
+    gcs_write_csv,
+    get_model_weights_path,
+)
 from forts.model_pipeline.core.core_extension import CustomNeuralForecast
 from forts.visualization.model_visualization import plot_generated_vs_original
 
@@ -220,7 +224,13 @@ class ModelPipeline(_ModelListMixin):
                 )
                 auto_model = ModelClass(**init_kwargs)
                 nf = CustomNeuralForecast(models=[auto_model], freq=self.freq)
-                model = nf.load(path=nf_save_path)
+
+                load_path = nf_save_path
+                local_path = _get_local_fallback_path(nf_save_path)
+                if os.path.exists(local_path):
+                    load_path = local_path
+
+                model = nf.load(path=load_path)
                 print("Load successful.")
             except FileNotFoundError:
                 print(
@@ -234,7 +244,13 @@ class ModelPipeline(_ModelListMixin):
                     val_size=self.h,
                 )
 
-                model.save(path=nf_save_path, overwrite=True, save_dataset=False)
+                try:
+                    model.save(path=nf_save_path, overwrite=True, save_dataset=False)
+                except Exception as e:
+                    print(f"Failed to save to GCS: {e}. Saving to local fallback.")
+                    local_path = _get_local_fallback_path(nf_save_path)
+                    model.save(path=local_path, overwrite=True, save_dataset=False)
+
                 print(f"Saved {name} NeuralForecast object to {nf_save_path}")
 
                 results = model.models[0].results.get_dataframe()
@@ -284,7 +300,13 @@ class ModelPipeline(_ModelListMixin):
         else:
             save_dir = f"{weights_folder}/finetuned/hypertuning"
         nf_save_path = f"{save_dir}/{dataset_source}_{dataset_group_source}_{model_name}_neuralforecast"
-        finetune_nf.save(path=nf_save_path, overwrite=True, save_dataset=False)
+        try:
+            finetune_nf.save(path=nf_save_path, overwrite=True, save_dataset=False)
+        except Exception as e:
+            print(f"Failed to save to GCS: {e}. Saving to local fallback.")
+            local_path = _get_local_fallback_path(nf_save_path)
+            finetune_nf.save(path=local_path, overwrite=True, save_dataset=False)
+
         print(
             f"Saved fine-tuned {model_name} " f"NeuralForecast object to {nf_save_path}"
         )

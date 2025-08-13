@@ -16,11 +16,13 @@ def cleanup_fallback_dir():
     import shutil
 
     fallback_dir = "gcs_fallback_test"
+    os.environ["FORTS_FALLBACK_DIR"] = fallback_dir
     if os.path.exists(fallback_dir):
         shutil.rmtree(fallback_dir)
     yield
     if os.path.exists(fallback_dir):
         shutil.rmtree(fallback_dir)
+    del os.environ["FORTS_FALLBACK_DIR"]
 
 
 def test_gcs_write_csv_fallback(caplog):
@@ -32,7 +34,7 @@ def test_gcs_write_csv_fallback(caplog):
         gcs_path = "gs://test-bucket/test.csv"
         gcs_write_csv(test_df, gcs_path)
 
-        local_path = "gcs_fallback/test-bucket/test.csv"
+        local_path = "gcs_fallback_test/test-bucket/test.csv"
         assert os.path.exists(local_path)
         assert "GCS not available. Saving to local fallback" in caplog.text
 
@@ -50,7 +52,7 @@ def test_gcs_write_json_fallback(caplog):
         gcs_path = "gs://test-bucket/test.json"
         gcs_write_json(test_data, gcs_path)
 
-        local_path = "gcs_fallback/test-bucket/test.json"
+        local_path = "gcs_fallback_test/test-bucket/test.json"
         assert os.path.exists(local_path)
         assert "GCS not available. Saving to local fallback" in caplog.text
 

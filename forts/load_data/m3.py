@@ -1,6 +1,4 @@
-import pandas as pd
-
-from forts.gcs_utils import get_gcs_fs
+from forts.gcs_utils import gcs_read_parquet
 from forts.load_data.base import LoadDataset
 
 
@@ -14,8 +12,7 @@ class M3Dataset(LoadDataset):
 
         gcs_path = f"{self.DATASET_PATH}/{group.lower()}.parquet"
         try:
-            with get_gcs_fs().open(gcs_path, "rb") as f:
-                ds = pd.read_parquet(f)
+            ds = gcs_read_parquet(gcs_path)
         except FileNotFoundError:
             raise FileNotFoundError(
                 f"Dataset not found at {gcs_path}. "
