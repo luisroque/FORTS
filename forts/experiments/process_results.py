@@ -11,26 +11,39 @@ from forts.gcs_utils import (
     get_gcs_path,
 )
 
-BASE_OUT_DOMAIN = get_gcs_path("results_forecast_out_domain")
-BASE_IN_DOMAIN = get_gcs_path("results_forecast_in_domain")
-BASE_BASIC_FORECASTING = get_gcs_path("results_forecast_basic_forecasting")
-SUMMARY_DIR = get_gcs_path("results_forecast_out_domain_summary")
+BASE_OUT_DOMAIN = get_gcs_path("results/results_forecast_out_domain")
+BASE_IN_DOMAIN = get_gcs_path("results/results_forecast_in_domain")
+BASE_BASIC_FORECASTING = get_gcs_path("results/results_forecast_basic_forecasting")
+BASE_CORESET = get_gcs_path("results/results_forecast_coreset")
+SUMMARY_DIR = get_gcs_path("results/results_summary")
+FM_RESULTS_DIR = get_gcs_path("results/results_forecast_FM")
 
 
 FM_PATHS = {
-    "moirai": f"{SUMMARY_DIR}/moirai_results.csv",
-    "timemoe": f"{SUMMARY_DIR}/timemoe_results.csv",
+    "moirai": f"{FM_RESULTS_DIR}/moirai_results.csv",
+    "timemoe": f"{FM_RESULTS_DIR}/timemoe_results.csv",
 }
 
 
-def load_json_files(base_path: str) -> pd.DataFrame:
+def load_json_files(base_path: str, max_files: Optional[int] = None) -> pd.DataFrame:
     """
     Load all JSON files from a GCS directory into a DataFrame.
     """
+    files = gcs_list_files(base_path, extension=".json")
+
+    if max_files is not None:
+        files = files[:max_files]
+
     data = []
-    for file_path in gcs_list_files(base_path, extension=".json"):
-        data.append(gcs_read_json(file_path))
-    return pd.DataFrame(data)
+    for file_path in files:
+        try:
+            data.append(gcs_read_json(file_path))
+        except Exception as e:
+            print(f"Error reading {file_path}: {e}")
+
+    df = pd.DataFrame(data)
+    print(f"Loaded DataFrame with {len(df)} rows and columns: {list(df.columns)}")
+    return df
 
 
 def rename_columns(df: pd.DataFrame, domain: str) -> pd.DataFrame:
@@ -79,14 +92,17 @@ def add_source_target_pair_column(df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def apply_fm_results(base_df: pd.DataFrame, path_fm: str) -> pd.DataFrame:
+def load_fm_result(path_fm: str, reference_cols: List[str]) -> pd.DataFrame:
     """
-    Merge forecast model (FM) results with the filtered coreset.
+    Load and process a single forecast model (FM) result file.
     """
-    fm_df = gcs_read_csv(path_fm)
-    required_columns = base_df.columns
+    try:
+        fm_df = gcs_read_csv(path_fm)
+    except FileNotFoundError:
+        print(f"Info: FM results file not found at {path_fm}. Skipping.")
+        return pd.DataFrame()
 
-    for col in required_columns:
+    for col in reference_cols:
         if col not in fm_df.columns:
             fm_df[col] = pd.NA
 
@@ -95,9 +111,7 @@ def apply_fm_results(base_df: pd.DataFrame, path_fm: str) -> pd.DataFrame:
         lambda x: f"ALL_BUT_{x['Dataset Target']}_{x['Dataset Group Target']}",
         axis=1,
     )
-    fm_df = fm_df[required_columns]
-
-    return pd.concat([base_df, fm_df], ignore_index=True)
+    return fm_df.reindex(columns=reference_cols)
 
 
 def summarize_metric(
@@ -147,15 +161,102 @@ def summarize_metric(
     return summary
 
 
-def main():
-    out_df = load_json_files(BASE_OUT_DOMAIN)
-    in_df = load_json_files(BASE_IN_DOMAIN)
-    basic_for_df = load_json_files(BASE_BASIC_FORECASTING)
+def generate_latex_summary(
+    basic_df: pd.DataFrame,
+    in_domain_df: pd.DataFrame,
+    single_source_df: pd.DataFrame,
+    multi_source_df: pd.DataFrame,
+    metric: str,
+    out_path: str,
+) -> pd.DataFrame:
+    """
+    Generates a summary table for LaTeX.
+    """
+    dfs = [basic_df, in_domain_df, single_source_df, multi_source_df]
+    if not any(not df.empty for df in dfs):
+        print("Info: No data available to generate LaTeX summary.")
+        return pd.DataFrame()
+
+    all_methods = pd.concat(
+        [
+            df[["Method"]]
+            for df in [basic_df, in_domain_df, single_source_df, multi_source_df]
+            if not df.empty
+        ]
+    ).drop_duplicates()
+
+    scenarios = {
+        "Full-shot": basic_df,
+        "In-domain": in_domain_df,
+        "Single-source": single_source_df,
+        "Multi-source": multi_source_df,
+    }
+
+    if all_methods.empty:
+        print("Info: No methods found to generate LaTeX summary.")
+        return pd.DataFrame()
+
+    final_summary = all_methods
+    count_summary = all_methods.copy()
+
+    for name, df in scenarios.items():
+        if df.empty:
+            mase = pd.DataFrame({"Method": [], f"{name}_MASE": []})
+            rank = pd.DataFrame({"Method": [], f"{name}_Rank": []})
+            counts = pd.DataFrame({"Method": [], f"{name}_Count": []})
+        else:
+            mase = summarize_metric(df, metric, "mean", aggregate_by=["Method"]).rename(
+                columns={metric: f"{name}_MASE"}
+            )
+            rank = summarize_metric(
+                df,
+                metric,
+                "rank",
+                aggregate_by=["Method"],
+                rank_within=["Source-Target Pair"],
+            ).rename(columns={"Rank": f"{name}_Rank"})
+            counts = df.groupby("Method").size().reset_index(name=f"{name}_Count")
+
+        summary = pd.merge(mase, rank, on="Method", how="outer")
+        final_summary = pd.merge(final_summary, summary, on="Method", how="left")
+        count_summary = pd.merge(count_summary, counts, on="Method", how="left")
+
+    final_summary = final_summary.sort_values(by="Method").reset_index(drop=True)
+    count_summary = count_summary.sort_values(by="Method").reset_index(drop=True)
+
+    gcs_write_csv(final_summary, f"{out_path}/latex_summary.csv")
+    gcs_write_csv(count_summary, f"{out_path}/latex_count_summary.csv")
+
+    return final_summary
+
+
+def main(max_files: Optional[int] = None, output_path: Optional[str] = None):
+    print("Loading data from GCS directories...")
+
+    out_df = load_json_files(BASE_OUT_DOMAIN, max_files)
+    print(f"Out-domain results: {len(out_df)} rows loaded")
+
+    in_df = load_json_files(BASE_IN_DOMAIN, max_files)
+    print(f"In-domain results: {len(in_df)} rows loaded")
+
+    basic_for_df = load_json_files(BASE_BASIC_FORECASTING, max_files)
+    print(f"Basic forecasting results: {len(basic_for_df)} rows loaded")
+
+    coreset_df = load_json_files(BASE_CORESET, max_files)
+    print(f"Coreset results: {len(coreset_df)} rows loaded")
+
+    if "Dataset Source" not in out_df.columns:
+        out_df["Dataset Source"] = "None"
+    if "Dataset" not in out_df.columns:
+        out_df["Dataset"] = "None"
 
     out_df = out_df[out_df["Dataset Source"] != out_df["Dataset"]]
+    out_df = out_df[out_df["Dataset Source"] != "MIXED"]
+
     out_df = rename_columns(out_df, "out_domain")
     in_df = rename_columns(in_df, "in_domain")
     basic_for_df = rename_columns(basic_for_df, "basic_forecasting")
+    coreset_df = rename_columns(coreset_df, "out_domain")
 
     common_cols = [
         "Dataset Source",
@@ -177,81 +278,35 @@ def main():
     basic_for_df["Dataset Group Source"] = "None"
     basic_for_df = align_columns(basic_for_df, common_cols)
     out_df = align_columns(out_df, common_cols)
+    coreset_df = align_columns(coreset_df, common_cols)
 
-    # separate coreset and add FM results and add pair columns
-    coreset_df = out_df[out_df["Dataset Source"] == "MIXED"].copy()
-    coreset_df = apply_fm_results(coreset_df, FM_PATHS["moirai"])
-    coreset_df = apply_fm_results(coreset_df, FM_PATHS["timemoe"])
+    moirai_df = load_fm_result(FM_PATHS["moirai"], common_cols)
+    timemoe_df = load_fm_result(FM_PATHS["timemoe"], common_cols)
+    multi_source_df = pd.concat([coreset_df, moirai_df, timemoe_df], ignore_index=True)
 
-    out_df = out_df[out_df["Dataset Source"] != "MIXED"]
+    print(f"Moirai results: {len(moirai_df)} rows")
+    print(f"TimeMOE results: {len(timemoe_df)} rows")
+    print(f"Multi-source combined: {len(multi_source_df)} rows")
 
     out_df = add_source_target_pair_column(out_df)
     in_df = add_source_target_pair_column(in_df)
     basic_for_df = add_source_target_pair_column(basic_for_df)
-    coreset_df = add_source_target_pair_column(coreset_df)
+    multi_source_df = add_source_target_pair_column(multi_source_df)
 
     # summarize results
     metric = "MASE Mean"
-    metric_store = metric.replace(" ", "_").lower()
 
-    for df, suffix in zip(
-        [basic_for_df, in_df, out_df, coreset_df],
-        ["_basic_forecasting", "_in_domain", "_out_domain", "_out_domain_coreset"],
-    ):
-        summarize_metric(
-            df,
-            metric,
-            "rank",
-            aggregate_by=["Dataset Source", "Dataset Group Source", "Method"],
-            rank_within=["Source-Target Pair"],
-            out_path=SUMMARY_DIR,
-            fname=f"results_ranks_all_seasonalities{suffix}.csv",
-        )
-        summarize_metric(
-            df,
-            metric,
-            "mean",
-            aggregate_by=["Dataset Source", "Dataset Group Source", "Method"],
-            out_path=SUMMARY_DIR,
-            fname=f"results_all_seasonalities_{metric_store}{suffix}.csv",
-        )
-        summarize_metric(
-            df,
-            metric,
-            "mean",
-            aggregate_by=[
-                "Dataset Source",
-                "Dataset Group Source",
-                "Dataset Target",
-                "Dataset Group Target",
-                "Method",
-            ],
-            out_path=SUMMARY_DIR,
-            fname=(
-                "results_all_seasonalities_all_combinations_"
-                f"{metric_store}{suffix}.csv"
-            ),
-        )
-        summarize_metric(
-            df,
-            metric,
-            "rank",
-            aggregate_by=["Method"],
-            rank_within=["Source-Target Pair"],
-            out_path=SUMMARY_DIR,
-            fname=(
-                "results_ranks_all_seasonalities_by_method_"
-                f"{metric_store}{suffix}.csv"
-            ),
-        )
-        summarize_metric(
-            df,
-            metric,
-            "mean",
-            aggregate_by=["Method"],
-            out_path=SUMMARY_DIR,
-            fname=f"results_all_seasonalities_by_method_{metric_store}{suffix}.csv",
-        )
+    # Use provided output path or default
+    final_output_path = output_path if output_path is not None else SUMMARY_DIR
+
+    generate_latex_summary(
+        basic_df=basic_for_df,
+        in_domain_df=in_df,
+        single_source_df=out_df,
+        multi_source_df=multi_source_df,
+        metric=metric,
+        out_path=final_output_path,
+    )
 
 
 if __name__ == "__main__":

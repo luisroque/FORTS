@@ -2,8 +2,6 @@ import logging
 import sys
 import traceback
 
-import pandas as pd
-
 from forts.data_pipeline.data_pipeline_setup import (
     DataPipeline,
     build_mixed_trainval,
@@ -18,7 +16,6 @@ from forts.experiments.helper import (
     get_model_list,
     set_device,
 )
-from forts.gcs_utils import gcs_write_csv, get_gcs_path
 from forts.metrics.evaluation_pipeline import evaluation_pipeline_forts_forecast
 from forts.model_pipeline.model_pipeline import ModelPipeline, ModelPipelineCoreset
 
@@ -79,7 +76,6 @@ def main():
         args = cmd_parser()
         set_device(use_gpu=args.use_gpu)
 
-        results = []
         model_list = get_model_list(args.model)
 
         # Check if any model in the list requires manual padding
@@ -89,7 +85,6 @@ def main():
         )
 
         if args.coreset:
-            LOO_RESULTS = []
 
             all_data_pipelines = {}
             for ds, groups in DATASET_GROUP_FREQ.items():
@@ -191,12 +186,10 @@ def main():
                         window_size_source=target_data_pipeline.h,
                         finetune=args.finetune,
                     )
-                    LOO_RESULTS.append(row)
-            results.extend(LOO_RESULTS)
+
         else:
             for DATASET, SUBGROUPS in DATASET_GROUP_FREQ.items():
                 for subgroup in SUBGROUPS.items():
-                    dataset_group_results = []
 
                     FREQ = extract_frequency(subgroup)
                     H = extract_horizon(subgroup)
@@ -275,8 +268,6 @@ def main():
                                         window_size_source=H_TL,
                                         finetune=args.finetune,
                                     )
-                                    dataset_group_results.append(row_forecast_tl)
-                                    results.append(row_forecast_tl)
                     elif args.basic_forecasting:
                         all_models_exist = True
                         for model_name, _ in model_list:
@@ -324,9 +315,6 @@ def main():
                                 window_size_source=H,
                                 mode="basic_forecasting",
                             )
-
-                            dataset_group_results.append(row_forecast)
-                            results.append(row_forecast)
                     else:
                         all_models_exist = True
                         for model_name, _ in model_list:
@@ -373,17 +361,6 @@ def main():
                                 window_size_source=H,
                                 mode="in_domain",
                             )
-
-                            dataset_group_results.append(row_forecast)
-                            results.append(row_forecast)
-
-        df_results = pd.DataFrame(results)
-
-        results_path = get_gcs_path("results/results_forecast")
-        final_results_path = f"{results_path}/final_results.csv"
-        gcs_write_csv(df_results, final_results_path)
-
-        print(f"Final forecast results saved to {final_results_path}")
 
     except Exception as e:
         logging.error(f"An error occurred during pipeline execution: {e}")

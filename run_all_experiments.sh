@@ -41,12 +41,19 @@ run_coreset_finetune() {
     echo "Coreset with fine-tuning complete."
 }
 
+run_process_results() {
+    echo "Processing results..."
+    python -m forts.experiments.process_results
+    echo "Results processing complete."
+}
+
 run_all() {
     run_basic_forecasting
     run_transfer_learning
     run_transfer_learning_finetune
     run_coreset
     run_coreset_finetune
+    run_process_results
     echo "All experiments complete."
 }
 
@@ -55,7 +62,7 @@ run_all() {
 
 usage() {
     echo "Usage: $0 [experiment_name] [--use-gpu] [--model MODEL_NAME]"
-    echo "Available experiments: basic, transfer, transfer_finetune, coreset, coreset_finetune, all"
+    echo "Available experiments: basic, transfer, transfer_finetune, coreset, coreset_finetune, process_results, all"
     echo "If 'all' or no experiment is specified, all experiments will be run."
     exit 1
 }
@@ -88,6 +95,9 @@ case "$experiment" in
         ;;
     all)
         run_all "$@"
+        ;;
+    process_results)
+        run_process_results "$@"
         ;;
     *)
         echo "Error: Invalid experiment name '$experiment'."
