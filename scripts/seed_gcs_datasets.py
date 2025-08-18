@@ -214,6 +214,21 @@ def seed_m4_dataset(group: str, temp_dir: str):
 
     print(f"Processing M4 {group} dataset...")
     df, *_ = M4.load(temp_dir, group=group)
+    df["ds"] = df["ds"].astype(int)
+
+    if group == "Quarterly":
+        df = df.query('unique_id!="Q23425"').reset_index(drop=True)
+
+    unq_periods = df["ds"].sort_values().unique()
+
+    freq_pd = {"Quarterly": "Q", "Monthly": "M"}
+    dates = pd.date_range(
+        end="2024-03-01", periods=len(unq_periods), freq=freq_pd[group]
+    )
+
+    new_ds = {k: v for k, v in zip(unq_periods, dates)}
+
+    df["ds"] = df["ds"].map(new_ds)
 
     local_path = os.path.join(temp_dir, f"m4_{group.lower()}.parquet")
     df.to_parquet(local_path)
@@ -239,46 +254,83 @@ def seed_m5_dataset(temp_dir: str):
 
 def main():
     """Main function to seed all datasets."""
+    parser = argparse.ArgumentParser(description="Seed datasets in GCS.")
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        help="Specify a single dataset to seed. If not provided, all datasets will be seeded.",
+        choices=[
+            "M1",
+            "M3",
+            "M4",
+            "M5",
+            "Tourism",
+            "ECL",
+            "ETTh1",
+            "ETTh2",
+            "ETTm1",
+            "ETTm2",
+            "Labour",
+            "Traffic",
+            "TourismLarge",
+            "TourismSmall",
+            "Weather",
+            "Wiki2",
+        ],
+    )
+    args = parser.parse_args()
+
     print("--- Starting GCS Dataset Seeding ---")
 
     os.makedirs(LOCAL_CACHE_PATH, exist_ok=True)
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        # M1 Datasets (uses its own cache, logic is fine)
-        seed_m1_dataset("Quarterly", temp_dir)
-        seed_m1_dataset("Monthly", temp_dir)
+        if args.dataset is None or args.dataset == "M1":
+            seed_m1_dataset("Quarterly", temp_dir)
+            seed_m1_dataset("Monthly", temp_dir)
+        if args.dataset is None or args.dataset == "M3":
+            seed_m3_dataset("Monthly", temp_dir)
+            seed_m3_dataset("Quarterly", temp_dir)
+            seed_m3_dataset("Yearly", temp_dir)
+        if args.dataset is None or args.dataset == "M4":
+            seed_m4_dataset("Monthly", temp_dir)
+            seed_m4_dataset("Quarterly", temp_dir)
+        if args.dataset is None or args.dataset == "M5":
+            seed_m5_dataset(temp_dir)
 
-        # M3 Datasets
-        seed_m3_dataset("Monthly", temp_dir)
-        seed_m3_dataset("Quarterly", temp_dir)
-        seed_m3_dataset("Yearly", temp_dir)
+    if args.dataset is None or args.dataset == "Tourism":
+        seed_tourism_dataset()
 
-        # M4 Datasets
-        seed_m4_dataset("Monthly", temp_dir)
-        seed_m4_dataset("Quarterly", temp_dir)
-
-        # M5 Dataset
-        seed_m5_dataset(temp_dir)
-
-    # Tourism Dataset
-    seed_tourism_dataset()
-
-    # datasetsforecast based
-    seed_datasetsforecast_dataset("M3", group="Monthly")
-    seed_datasetsforecast_dataset("M4", group="Monthly")
-    seed_datasetsforecast_dataset("M5")
-    seed_datasetsforecast_dataset("ECL", group_is_name=True)
-    seed_datasetsforecast_dataset("ETTh1", group_is_name=True)
-    seed_datasetsforecast_dataset("ETTh2", group_is_name=True)
-    seed_datasetsforecast_dataset("ETTm1", group_is_name=True)
-    seed_datasetsforecast_dataset("ETTm2", group_is_name=True)
-    seed_datasetsforecast_dataset("Labour", group_is_name=True)
-    seed_datasetsforecast_dataset("Traffic", group_is_name=True)
-    seed_datasetsforecast_dataset("Tourism", group_is_name=True)
-    seed_datasetsforecast_dataset("TourismLarge", group_is_name=True)
-    seed_datasetsforecast_dataset("TourismSmall", group_is_name=True)
-    seed_datasetsforecast_dataset("Weather", group_is_name=True)
-    seed_datasetsforecast_dataset("Wiki2", group_is_name=True)
+    if args.dataset is None or args.dataset == "M3":
+        seed_datasetsforecast_dataset("M3", group="Monthly")
+    if args.dataset is None or args.dataset == "M4":
+        seed_datasetsforecast_dataset("M4", group="Monthly")
+    if args.dataset is None or args.dataset == "M5":
+        seed_datasetsforecast_dataset("M5")
+    if args.dataset is None or args.dataset == "ECL":
+        seed_datasetsforecast_dataset("ECL", group_is_name=True)
+    if args.dataset is None or args.dataset == "ETTh1":
+        seed_datasetsforecast_dataset("ETTh1", group_is_name=True)
+    if args.dataset is None or args.dataset == "ETTh2":
+        seed_datasetsforecast_dataset("ETTh2", group_is_name=True)
+    if args.dataset is None or args.dataset == "ETTm1":
+        seed_datasetsforecast_dataset("ETTm1", group_is_name=True)
+    if args.dataset is None or args.dataset == "ETTm2":
+        seed_datasetsforecast_dataset("ETTm2", group_is_name=True)
+    if args.dataset is None or args.dataset == "Labour":
+        seed_datasetsforecast_dataset("Labour", group_is_name=True)
+    if args.dataset is None or args.dataset == "Traffic":
+        seed_datasetsforecast_dataset("Traffic", group_is_name=True)
+    if args.dataset is None or args.dataset == "Tourism":
+        seed_datasetsforecast_dataset("Tourism", group_is_name=True)
+    if args.dataset is None or args.dataset == "TourismLarge":
+        seed_datasetsforecast_dataset("TourismLarge", group_is_name=True)
+    if args.dataset is None or args.dataset == "TourismSmall":
+        seed_datasetsforecast_dataset("TourismSmall", group_is_name=True)
+    if args.dataset is None or args.dataset == "Weather":
+        seed_datasetsforecast_dataset("Weather", group_is_name=True)
+    if args.dataset is None or args.dataset == "Wiki2":
+        seed_datasetsforecast_dataset("Wiki2", group_is_name=True)
 
     print("\n--- GCS Dataset Seeding Complete ---")
     print(
@@ -287,4 +339,6 @@ def main():
 
 
 if __name__ == "__main__":
+    import argparse
+
     main()

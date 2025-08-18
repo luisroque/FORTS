@@ -1,35 +1,33 @@
-import importlib
-import inspect
-import pkgutil
-
 import pandas as pd
 import pytest
 
-import forts.load_data as load_data_pkg
-from forts.load_data.base import LoadDataset
+from forts.load_data.m1 import M1Dataset
+from forts.load_data.m3 import M3Dataset
+from forts.load_data.m4 import M4Dataset
+from forts.load_data.m5 import M5Dataset
+from forts.load_data.tourism import TourismDataset
+from forts.load_data.traffic import TrafficDataset
 
 
-def discover_dataset_classes():
-    """Dynamically discovers all LoadDataset subclasses in the forts.load_data package."""
-    dataset_classes = []
-    for _, name, _ in pkgutil.iter_modules(load_data_pkg.__path__):
-        if name not in ("base", "config"):
-            module = importlib.import_module(f"forts.load_data.{name}")
-            for _, obj in inspect.getmembers(module):
-                if (
-                    inspect.isclass(obj)
-                    and issubclass(obj, LoadDataset)
-                    and obj is not LoadDataset
-                ):
-                    dataset_classes.append(obj)
-    return dataset_classes
-
-
-@pytest.mark.parametrize("DatasetClass", discover_dataset_classes())
-def test_dataset_integrity(DatasetClass):
+@pytest.mark.parametrize(
+    "DatasetClass, group",
+    [
+        pytest.param(TourismDataset, "Monthly", id="TourismDataset-Monthly"),
+        pytest.param(M1Dataset, "Monthly", id="M1Dataset-Monthly"),
+        pytest.param(M1Dataset, "Quarterly", id="M1Dataset-Quarterly"),
+        pytest.param(M3Dataset, "Monthly", id="M3Dataset-Monthly"),
+        pytest.param(M3Dataset, "Quarterly", id="M3Dataset-Quarterly"),
+        pytest.param(M3Dataset, "Yearly", id="M3Dataset-Yearly"),
+        pytest.param(M4Dataset, "Monthly", id="M4Dataset-Monthly"),
+        pytest.param(M4Dataset, "Quarterly", id="M4Dataset-Quarterly"),
+        pytest.param(TrafficDataset, "Daily", id="TrafficDataset-Daily"),
+        pytest.param(M5Dataset, "Daily", id="M5Dataset-Daily"),
+    ],
+)
+def test_dataset_integrity(DatasetClass, group):
     """
     Tests that each dataset loader returns a DataFrame with the correct
-    structure and that the 'ds' column is of datetime type.
+    structure and that the 'ds' column is of datetime type with correct frequency.
     """
     # Instantiate the dataset class
     try:
@@ -39,14 +37,14 @@ def test_dataset_integrity(DatasetClass):
 
     # Load the data
     try:
-        # For datasets that require a 'group', we provide a default one.
-        # This is a simplification for the purpose of this test.
-        if "group" in inspect.signature(dataset.load).parameters:
-            df = dataset.load(group=dataset.data_group[0])
+        if group:
+            df = dataset.load(group=group)
         else:
             df = dataset.load()
     except Exception as e:
-        pytest.fail(f"Failed to load data from {DatasetClass.__name__}: {e}")
+        pytest.fail(
+            f"Failed to load data from {DatasetClass.__name__} (group: {group}): {e}"
+        )
 
     # --- Assertions ---
     assert isinstance(
@@ -63,6 +61,27 @@ def test_dataset_integrity(DatasetClass):
     assert pd.api.types.is_datetime64_any_dtype(
         df["ds"]
     ), f"The 'ds' column in {DatasetClass.__name__} is not a datetime type."
+
+    # Verify frequency if the dataset provides that information
+    if group and hasattr(dataset, "frequency_pd") and group in dataset.frequency_pd:
+        expected_freq = dataset.frequency_pd[group]
+        # We check frequency for each individual time series.
+        for unique_id, series_df in df.groupby("unique_id"):
+            # infer_freq needs at least 2 points, and more to be reliable.
+            if len(series_df) > 2:
+                series_df = series_df.sort_values("ds")
+                inferred_freq = pd.infer_freq(series_df["ds"])
+
+                if inferred_freq is not None:
+                    # M, ME, MS -> M. Q, QE, QS -> Q.
+                    expected_base_freq = expected_freq[0]
+                    inferred_base_freq = inferred_freq[0]
+                    assert expected_base_freq == inferred_base_freq, (
+                        f"Inferred frequency '{inferred_freq}' for unique_id '{unique_id}' "
+                        f"in {DatasetClass.__name__} (group: {group}) does not match "
+                        f"expected frequency '{expected_freq}' (base freq mismatch: "
+                        f"{inferred_base_freq} vs {expected_base_freq})."
+                    )
 
     # Verify that 'y' column is numeric
     assert pd.api.types.is_numeric_dtype(
