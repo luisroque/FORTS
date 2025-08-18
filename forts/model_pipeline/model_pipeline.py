@@ -113,7 +113,7 @@ class ModelPipeline(_ModelListMixin):
         max_evals=20,
         mode="in_domain",
         test_mode: bool = False,
-        max_steps: int = 1000,
+        max_steps: int = None,
         model_list=None,
     ):
         """
@@ -192,7 +192,10 @@ class ModelPipeline(_ModelListMixin):
                 base_config["start_padding_enabled"] = True
                 base_config["scaler_type"] = tune.choice([None, "standard"])
                 base_config["log_every_n_steps"] = 10
-            base_config["max_steps"] = max_steps
+            if max_steps is None:
+                base_config["max_steps"] = 1000
+            else:
+                base_config["max_steps"] = max_steps
 
             if mode == "out_domain":
                 base_config["input_size"] = self.h

@@ -57,7 +57,7 @@ def evaluation_pipeline_forts_forecast(
             f"{results_folder}/{dataset}_{dataset_group}_{model_name}_{horizon}.json"
         )
 
-    if gcs_path_exists(results_file):
+    if gcs_path_exists(results_file) and not test_mode:
         existing_results = gcs_read_json(results_file)
         row_forecast.update(existing_results)
         print(
