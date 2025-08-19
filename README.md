@@ -6,42 +6,33 @@ We introduce FORTS, a novel evaluation framework designed to assess the generali
 
 `FORTS` formalizes the above in four evaluation settings that systematically vary the domain overlap between training and test sets. This allows a more systematic and controlled evaluation of how a TSFM performs in terms of *domain transferability*.
 
-In all settings, we apply a consistent temporal split at the series level. That is, for each time series \\( Y^{(i)} = \\{ y^{(i)}_t \\} \\), we define a cutoff point \\( t^* \\) and split temporally into:
-
-\\[
-\mathcal{Y}_{\text{train}} = \\{ y^{(i)}_t \mid t \leq t^* \\}, \quad
-\mathcal{Y}_{\text{test}} = \\{ y^{(i)}_t \mid t > t^* \\}
-\\]
-
-This temporal partitioning is applied consistently across all regimes, regardless of whether the training and test sets originate from the same domain or different domains.
-
 #### Full-shot evaluation
-This regime reflects the standard forecasting setup (single domain): each time series \\( Y^{(i)} \in \mathcal{D}^{(j)} \\) is split temporally into training and test segments. Specifically, for a fixed cutoff time \\( t^* \\), we define:
-\\[
+This regime reflects the standard forecasting setup (single domain): each time series $Y^{(i)} \in \mathcal{D}^{(j)}$ is split temporally into training and test segments. Specifically, for a fixed cutoff time $t^*$, we define:
+```math
 \mathcal{Y}_{\text{train}} \subset \mathcal{D}^{(j)}, \quad \mathcal{Y}_{\text{test}} \subset \mathcal{D}^{(j)}
-\\]
-for all \\( i \in \{1, \dots, n_j\} \\). The model is trained and evaluated on different segments of the same series. This setup tests the ability of the model to extrapolate in time but does not evaluate its capacity to generalize across unseen series and across domains.
+```
+for all $i \in \{1, \dots, n_j\}$. The model is trained and evaluated on different segments of the same series. This setup tests the ability of the model to extrapolate in time but does not evaluate its capacity to generalize across unseen series and across domains.
 
 #### In-domain transfer learning
-In this regime, the model is trained and evaluated on disjoint subsets of time series from the same domain \\( \mathcal{S}_j \\). Specifically, let the dataset \\( \mathcal{D}^{(j)} \\) be partitioned into non-overlapping subsets:
-\\[
+In this regime, the model is trained and evaluated on disjoint subsets of time series from the same domain $\mathcal{S}_j$. Specifically, let the dataset $\mathcal{D}^{(j)}$ be partitioned into non-overlapping subsets:
+```math
 \mathcal{Y}_{\text{train}} \subset \mathcal{D}^{(j)}, \quad \mathcal{Y}_{\text{test}} \subset \mathcal{D}^{(j)} \setminus \mathcal{Y}_{\text{train}}
-\\]
+```
 with no overlap in series. This setup assesses the ability of the model to generalize from a subset of time series to unseen series within the same domain. It simulates settings such as forecasting for new products, clients, or sensors not seen during training.
 
 #### Single-source out-of-domain transfer learning
-This setting evaluates domain transfer from a single source domain \\( \mathcal{S}_j \\) to a distinct target domain \\( \mathcal{S}_k \\). The model is trained on all time series from dataset \\( \mathcal{D}^{(j)} \\) and tested on all time series from \\( \mathcal{D}^{(k)} \\), with \\( j \neq k \\):
-\\[
+This setting evaluates domain transfer from a single source domain $\mathcal{S}_j$ to a distinct target domain $\mathcal{S}_k$. The model is trained on all time series from dataset $\mathcal{D}^{(j)}$ and tested on all time series from $\mathcal{D}^{(k)}$, with $j \neq k$:
+```math
 \mathcal{Y}_{\text{train}} = \mathcal{D}^{(j)}, \quad \mathcal{Y}_{\text{test}} = \mathcal{D}^{(k)}
-\\]
+```
 This regime reflects real-world deployment scenarios in which a forecasting model must generalize to entirely new environments without access to domain-specific retraining data.
 
 #### Multiple-source out-of-domain transfer learning
-The most challenging regime mirrors the goal of TSFMs: train once on diverse datasets and generalize zero-shot to unseen domains. Given a collection of datasets \\( \{ \mathcal{D}^{(1)}, \dots, \mathcal{D}^{(M)} \} \\), we perform leave-one-domain-out evaluation. For a held-out domain \\( \mathcal{S}_k \\), we define:
-\\[
+The most challenging regime mirrors the goal of TSFMs: train once on diverse datasets and generalize zero-shot to unseen domains. Given a collection of datasets $\{ \mathcal{D}^{(1)}, \dots, \mathcal{D}^{(M)} \}$, we perform leave-one-domain-out evaluation. For a held-out domain $\mathcal{S}_k$, we define:
+```math
 \mathcal{Y}_{\text{train}} = \bigcup_{j \neq k} \mathcal{D}^{(j)}, \quad
 \mathcal{Y}_{\text{test}} = \mathcal{D}^{(k)}
-\\]
+```
 This setting tests whether pre-training on multiple diverse domains results in robust representations that transfer with or without fine-tuning.
 
 Each regime in `FORTS` is designed to isolate a specific axis of generalization. *Full-shot* focuses on temporal extrapolation. *In-domain transfer learning* evaluates cross-series generalization within structurally similar environments. *Single-source out-of-domain transfer learning* tests adaptation under a strong domain shift. *Multi-source out-of-domain transfer learning* demonstrates foundation-level generalization.
