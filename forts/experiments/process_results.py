@@ -42,7 +42,6 @@ def load_json_files(base_path: str, max_files: Optional[int] = None) -> pd.DataF
             print(f"Error reading {file_path}: {e}")
 
     df = pd.DataFrame(data)
-    print(f"Loaded DataFrame with {len(df)} rows and columns: {list(df.columns)}")
     return df
 
 

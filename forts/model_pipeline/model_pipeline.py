@@ -19,6 +19,7 @@ from forts.gcs_utils import (
     gcs_write_csv,
     get_model_weights_path,
 )
+from forts.model_pipeline.auto.AutoModels import AutoTimeMOE
 from forts.model_pipeline.core.core_extension import CustomNeuralForecast
 from forts.visualization.model_visualization import plot_generated_vs_original
 
@@ -29,6 +30,7 @@ AutoModelType = Union[
     AutoiTransformer,
     AutoTSMixer,
     AutoTFT,
+    AutoTimeMOE,
 ]
 
 
@@ -46,6 +48,7 @@ class _ModelListMixin:
         ("AutoiTransformer", AutoiTransformer),
         ("AutoTSMixer", AutoTSMixer),
         ("AutoTFT", AutoTFT),
+        ("AutoTimeMOE", AutoTimeMOE),
     ]
 
     def get_model_list(self):

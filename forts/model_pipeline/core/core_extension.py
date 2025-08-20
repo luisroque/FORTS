@@ -21,6 +21,14 @@ from neuralforecast.core import (
     validate_freq,
 )
 
+from forts.model_pipeline.timemoe import TimeMOE
+
+nf_core.MODEL_FILENAME_DICT.update(
+    {
+        "autotimemoe": TimeMOE,
+    }
+)
+
 
 class CustomNeuralForecast(NeuralForecast):
     """

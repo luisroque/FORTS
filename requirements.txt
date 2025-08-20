@@ -12,3 +12,4 @@ gcsfs==2025.7.0
 python-dotenv==1.1.1
 pytest-mock==3.14.1
 google-cloud-secret-manager==2.24.0
+transformers==4.40.1
