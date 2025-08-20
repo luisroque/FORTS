@@ -173,6 +173,6 @@ def cmd_parser():
         default=None,
         help="Specify a single model to run (e.g., AutoNHITS).",
     )
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
 
     return args

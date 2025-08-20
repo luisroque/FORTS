@@ -241,6 +241,7 @@ def main():
                                     mode="out_domain",
                                     dataset_source=DATASET_TL,
                                     dataset_group_source=DATASET_GROUP_TL,
+                                    model_list=model_list,
                                 )
                                 data_pipeline = get_data_pipeline(DATASET, subgroup)
                                 model_pipeline = ModelPipeline(
@@ -297,6 +298,7 @@ def main():
                             mode="basic_forecasting",
                             dataset_source=DATASET,
                             dataset_group_source=DATASET_GROUP,
+                            model_list=model_list,
                         )
 
                         for model_name, model in model_pipeline.models.items():
@@ -343,6 +345,7 @@ def main():
                             mode="in_domain",
                             dataset_source=DATASET,
                             dataset_group_source=DATASET_GROUP,
+                            model_list=model_list,
                         )
 
                         for model_name, model in model_pipeline.models.items():

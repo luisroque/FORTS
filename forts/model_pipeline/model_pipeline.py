@@ -154,8 +154,9 @@ class ModelPipeline(_ModelListMixin):
         )
         print(f"Using {num_cpus} CPUs and {gpus} GPUs for training.")
 
-        if model_list is None:
-            model_list = self.get_model_list()
+        models_to_train = (
+            model_list if model_list is not None else self.get_model_list()
+        )
 
         weights_folder = get_model_weights_path()
         if test_mode:
@@ -165,7 +166,7 @@ class ModelPipeline(_ModelListMixin):
 
         save_dir = f"{weights_folder}/hypertuning{mode_suffix}"
 
-        for name, ModelClass in model_list:
+        for name, ModelClass in models_to_train:
             print(f"\n=== Handling {name} ===")
             if name in ("AutoTSMixer", "AutoiTransformer"):
                 init_kwargs = dict(
