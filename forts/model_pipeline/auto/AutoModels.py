@@ -12,10 +12,10 @@ from forts.model_pipeline.timemoe import TimeMOE
 class AutoTimeMOE(BaseAuto):
 
     default_config = {
-        "hidden_size": tune.choice([64, 128, 256]),
-        "intermediate_size": tune.choice([256, 512, 1024]),
-        "num_hidden_layers": tune.choice([1, 2, 3]),
-        "num_attention_heads": tune.choice([2, 4, 8]),
+        "hidden_size": tune.choice([32, 64]),
+        "intermediate_size": tune.choice([128, 256]),
+        "num_hidden_layers": tune.choice([1, 2]),
+        "num_attention_heads": tune.choice([2, 4]),
         "num_experts": tune.choice([2, 4, 8]),
         "num_experts_per_tok": tune.choice([1, 2]),
         "attention_dropout": tune.uniform(0.0, 0.2),
@@ -23,8 +23,8 @@ class AutoTimeMOE(BaseAuto):
         "learning_rate": tune.loguniform(1e-5, 1e-2),
         "scaler_type": tune.choice([None, "standard"]),
         "max_steps": tune.quniform(lower=500, upper=1500, q=100),
-        "batch_size": tune.choice([32, 64, 128, 256]),
-        "windows_batch_size": tune.choice([128, 256, 512, 1024]),
+        "batch_size": tune.choice([32, 64, 128]),
+        "windows_batch_size": tune.choice([64, 128]),
         "random_seed": tune.randint(lower=1, upper=20),
     }
 
@@ -35,7 +35,7 @@ class AutoTimeMOE(BaseAuto):
         valid_loss=None,
         config=None,
         search_alg=BasicVariantGenerator(random_state=1),
-        num_samples=10,
+        num_samples=5,
         refit_with_val=False,
         cpus=cpu_count(),
         gpus=torch.cuda.device_count(),

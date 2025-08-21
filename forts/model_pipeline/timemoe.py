@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from neuralforecast.common._base_windows import BaseWindows
 from neuralforecast.losses.pytorch import MAE
 from torch import nn
+from torch.utils.checkpoint import checkpoint
 from transformers import Cache, DynamicCache, PreTrainedModel, StaticCache
 from transformers.activations import ACT2FN
 from transformers.modeling_attn_mask_utils import _prepare_4d_causal_attention_mask
@@ -854,6 +855,11 @@ class TimeMoePreTrainedModel(PreTrainedModel):
     _supports_flash_attn_2 = True
     _supports_sdpa = False
     _supports_cache_class = True
+    _gradient_checkpointing_func = staticmethod(
+        lambda func, *args, **kwargs: checkpoint(
+            func, *args, use_reentrant=True, **kwargs
+        )
+    )
 
     def _init_weights(self, module):
         std = self.config.initializer_range
@@ -1526,6 +1532,11 @@ class TimeMOE(BaseWindows):
             _attn_implementation="eager",
         )
         self.model = TimeMoeForPrediction(self.config)
+
+        # enable grad checkpointing on the decoder (saves a lot of activation memory)
+        self.model.model.gradient_checkpointing = True
+        # (optional but avoids warnings): checkpointing is incompatible with caching
+        self.config.use_cache = False
 
     def forward(self, windows_batch):
         insample_y = windows_batch["insample_y"]
