@@ -8,10 +8,6 @@ from forts.metrics.evaluation_pipeline import evaluation_pipeline_forts_forecast
 from forts.model_pipeline.model_pipeline import ModelPipeline
 
 
-class TestModelPipeline(ModelPipeline):
-    MODEL_LIST = [("AutoNHITS", AutoNHITS)]
-
-
 @pytest.fixture
 def setup_pipeline():
     """Sets up a DataPipeline and ModelPipeline for a small dataset."""
@@ -22,7 +18,8 @@ def setup_pipeline():
         horizon=12,
         window_size=24,
     )
-    mp = TestModelPipeline(data_pipeline=dp)
+    mp = ModelPipeline(data_pipeline=dp)
+    mp.MODEL_LIST = [("AutoNHITS", AutoNHITS)]
     return dp, mp
 
 

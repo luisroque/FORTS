@@ -7,17 +7,13 @@ from forts.metrics.evaluation_pipeline import evaluation_pipeline_forts_forecast
 from forts.model_pipeline.model_pipeline import ModelPipeline
 
 
-class TestModelPipeline(ModelPipeline):
-    MODEL_LIST = [("AutoNHITS", AutoNHITS)]
-
-
 @pytest.mark.parametrize(
     "source_dataset, source_group, H_TL, source_freq, target_dataset, target_group, H, target_freq, should_skip",
     [
         # Case 1: Fine-tuning should be skipped (target horizon too small)
         ("Labour", "Monthly", 24, "ME", "Tourism", "Monthly", 12, "ME", True),
         # Case 2: Fine-tuning should run (different seasonalities, valid horizons)
-        ("M3", "Yearly", 4, "Y", "M1", "Quarterly", 8, "Q", False),
+        ("M3", "Yearly", 4, "Y", "M1", "Quarterly", 8, "QE", False),
         # Case 3: Fine-tuning should run (equal horizons)
         ("M3", "Monthly", 12, "ME", "M1", "Monthly", 12, "ME", False),
     ],
@@ -46,7 +42,8 @@ def test_finetuning_logic(
         horizon=H_TL,
         window_size=H_TL * 2,
     )
-    source_mp = TestModelPipeline(data_pipeline=source_dp)
+    source_mp = ModelPipeline(data_pipeline=source_dp)
+    source_mp.MODEL_LIST = [("AutoNHITS", AutoNHITS)]
 
     # Setup target pipeline
     target_dp = DataPipeline(
@@ -56,7 +53,8 @@ def test_finetuning_logic(
         horizon=H,
         window_size=H * 2,
     )
-    target_mp = TestModelPipeline(data_pipeline=target_dp)
+    target_mp = ModelPipeline(data_pipeline=target_dp)
+    target_mp.MODEL_LIST = [("AutoNHITS", AutoNHITS)]
 
     # Train a model on the source data
     source_mp.hyper_tune_and_train(

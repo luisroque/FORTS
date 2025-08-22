@@ -8,10 +8,6 @@ from forts.metrics.evaluation_pipeline import evaluation_pipeline_forts_forecast
 from forts.model_pipeline.model_pipeline import ModelPipeline
 
 
-class TestModelPipeline(ModelPipeline):
-    MODEL_LIST = [("AutoNHITS", AutoNHITS)]
-
-
 @pytest.fixture
 def setup_pipelines():
     """Sets up source and target pipelines for transfer learning."""
@@ -22,7 +18,8 @@ def setup_pipelines():
         horizon=12,
         window_size=24,
     )
-    source_mp = TestModelPipeline(data_pipeline=source_dp)
+    source_mp = ModelPipeline(data_pipeline=source_dp)
+    source_mp.MODEL_LIST = [("AutoNHITS", AutoNHITS)]
 
     target_dp = DataPipeline(
         dataset_name="Tourism",
@@ -31,7 +28,8 @@ def setup_pipelines():
         horizon=12,
         window_size=24,
     )
-    target_mp = TestModelPipeline(data_pipeline=target_dp)
+    target_mp = ModelPipeline(data_pipeline=target_dp)
+    target_mp.MODEL_LIST = [("AutoNHITS", AutoNHITS)]
 
     return source_mp, target_mp, target_dp
 

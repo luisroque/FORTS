@@ -8,10 +8,6 @@ from forts.model_pipeline.auto.AutoModels import AutoTimeMOE
 from forts.model_pipeline.model_pipeline import ModelPipeline
 
 
-class TestModelPipeline(ModelPipeline):
-    MODEL_LIST = [("AutoTimeMOE", AutoTimeMOE)]
-
-
 @pytest.fixture
 def setup_pipeline():
     """Sets up a DataPipeline and ModelPipeline for a small dataset."""
@@ -22,7 +18,8 @@ def setup_pipeline():
         horizon=12,
         window_size=24,
     )
-    mp = TestModelPipeline(data_pipeline=dp)
+    mp = ModelPipeline(data_pipeline=dp)
+    mp.MODEL_LIST = [("AutoTimeMOE", AutoTimeMOE)]
     return dp, mp
 
 

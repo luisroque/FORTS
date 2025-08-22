@@ -122,7 +122,7 @@ def evaluation_pipeline_forts_forecast(
             )
             row_forecast[f"Forecast SMAPE (last window) Per Series_{mode}"] = None
         else:
-            smape_series = forecast_horizon.groupby("unique_id").apply(
+            smape_series = forecast_horizon.groupby("unique_id", observed=False).apply(
                 lambda df: smape(df["y_true"], df["y"])
             )
 
@@ -135,7 +135,9 @@ def evaluation_pipeline_forts_forecast(
                 row_forecast[key] = value
                 print(f"[sMAPE/{stat_name} ({mode})] = {value:.4f}")
 
-            mase_series = forecast_df_last_window_horizon.groupby("unique_id").apply(
+            mase_series = forecast_df_last_window_horizon.groupby(
+                "unique_id", observed=False
+            ).apply(
                 lambda df: mase(
                     df["y_true"],
                     df["y"],
@@ -153,7 +155,7 @@ def evaluation_pipeline_forts_forecast(
                 row_forecast[key] = value
                 print(f"[MASE/{stat_name} ({mode})] = {value:.4f}")
 
-            mae_series = forecast_horizon.groupby("unique_id").apply(
+            mae_series = forecast_horizon.groupby("unique_id", observed=False).apply(
                 lambda df: mae(df["y_true"], df["y"])
             )
             for stat, agg in {"MEDIAN": np.nanmedian, "MEAN": np.nanmean}.items():
@@ -161,7 +163,7 @@ def evaluation_pipeline_forts_forecast(
                 row_forecast[metric_prefix.format(metric="MAE", stat=stat)] = val
                 print(f"[MAE/{stat} ({mode})]  = {val:.4f}")
 
-            rmse_series = forecast_horizon.groupby("unique_id").apply(
+            rmse_series = forecast_horizon.groupby("unique_id", observed=False).apply(
                 lambda df: rmse(df["y_true"], df["y"])
             )
             for stat, agg in {"MEDIAN": np.nanmedian, "MEAN": np.nanmean}.items():
@@ -169,7 +171,9 @@ def evaluation_pipeline_forts_forecast(
                 row_forecast[metric_prefix.format(metric="RMSE", stat=stat)] = val
                 print(f"[RMSE/{stat} ({mode})] = {val:.4f}")
 
-            rmsse_series = forecast_df_last_window_horizon.groupby("unique_id").apply(
+            rmsse_series = forecast_df_last_window_horizon.groupby(
+                "unique_id", observed=False
+            ).apply(
                 lambda d: rmsse(
                     d["y_true"],
                     d["y"],

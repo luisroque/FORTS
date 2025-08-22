@@ -146,6 +146,20 @@ class ModelPipeline(_ModelListMixin):
             trainval_long = self.trainval_long
             mode_suffix = ""
 
+        # Filter out series that are too short for the validation set.
+        # The length of a series must be greater than the validation size.
+        val_size = self.h
+        group_sizes = trainval_long.groupby("unique_id")["unique_id"].transform("size")
+        original_series_count = len(trainval_long["unique_id"].unique())
+        trainval_long = trainval_long[group_sizes > val_size]
+        filtered_series_count = len(trainval_long["unique_id"].unique())
+
+        if original_series_count > filtered_series_count:
+            print(
+                f"Filtered out {original_series_count - filtered_series_count} series "
+                f"from the training data because they were shorter than the validation size ({val_size})."
+            )
+
         num_cpus = os.cpu_count() - 3 if os.cpu_count() > 3 else 1
         gpus = 1 if torch.cuda.is_available() else 0
 
@@ -183,7 +197,7 @@ class ModelPipeline(_ModelListMixin):
                     n_series=1,
                 )
                 base_config["scaler_type"] = tune.choice([None, "standard"])
-                base_config["log_every_n_steps"] = 10
+                base_config["log_every_n_steps"] = 5
             else:
                 init_kwargs = dict(
                     h=self.h,
@@ -195,7 +209,7 @@ class ModelPipeline(_ModelListMixin):
                 base_config = ModelClass.get_default_config(h=self.h, backend="ray")
                 base_config["start_padding_enabled"] = True
                 base_config["scaler_type"] = tune.choice([None, "standard"])
-                base_config["log_every_n_steps"] = 10
+                base_config["log_every_n_steps"] = 5
             if max_steps is None:
                 base_config["max_steps"] = 1000
             else:
@@ -352,17 +366,18 @@ class ModelPipeline(_ModelListMixin):
 
         df_test = test_set.sort_values(["unique_id", "ds"]).copy()
 
-        df_context = df_test.groupby(
-            "unique_id", group_keys=True, as_index=False
-        ).apply(
-            lambda g: self._mark_context_rows(
-                group=g,
-                window_size_source=window_size_source,
-                horizon=window_size,
-                mode=mode,
-            )
+        horizon = (
+            min(window_size_source, window_size)
+            if mode == "out_domain"
+            else window_size
         )
-        df_context = df_context.reset_index(drop=True)
+
+        required_size = window_size_source + horizon
+        sizes = df_test.groupby("unique_id")["unique_id"].transform("size")
+        pos_from_end = df_test.groupby("unique_id").cumcount(ascending=False)
+
+        mask = (sizes >= required_size) & (pos_from_end >= horizon)
+        df_context = df_test[mask].reset_index(drop=True)
 
         if "y_true" in df_context.columns:
             df_context = df_context.rename(columns={"y_true": "y"})
@@ -423,9 +438,10 @@ class ModelPipeline(_ModelListMixin):
 
             df_y_hat_raw = model.predict(df=df_y_preprocess, freq=freq)
 
-            df_y_hat = df_y_hat_raw.groupby(
-                "unique_id", group_keys=True, as_index=False
-            ).apply(lambda g: self._mark_prediction_rows(group=g, horizon=window_size))
+            # Replaces the groupby().apply() with a more efficient version
+            df_y_hat = df_y_hat_raw.loc[
+                df_y_hat_raw.groupby("unique_id").cumcount() < window_size
+            ].copy()
             df_y_hat = df_y_hat.reset_index(drop=True)
 
             df_y_hat.sort_values(["unique_id", "ds"], inplace=True)
@@ -451,7 +467,9 @@ class ModelPipeline(_ModelListMixin):
 
         df_y_hat.rename(columns={model_name: "y"}, inplace=True)
         df_y_hat["y"] = df_y_hat["y"].clip(lower=0)
-        df_y_hat = df_y_hat.groupby("unique_id", group_keys=False).tail(h)
+        df_y_hat = df_y_hat.groupby("unique_id", group_keys=False, observed=False).tail(
+            h
+        )
 
         if "y_true" in df_y.columns:
             df_y = df_y.rename(columns={"y_true": "y"})

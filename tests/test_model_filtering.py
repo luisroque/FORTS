@@ -27,7 +27,7 @@ def test_model_filtering_basic_forecasting():
         patch("forts.experiments.run_pipeline.get_data_pipeline") as mock_get_dp,
         patch("forts.experiments.run_pipeline.evaluation_pipeline_forts_forecast"),
         patch(
-            "forts.experiments.helper.check_results_exist",
+            "forts.experiments.run_pipeline.check_results_exist",
             return_value=(False, "mock_path"),
         ),
         patch.dict(

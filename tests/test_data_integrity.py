@@ -66,7 +66,7 @@ def test_dataset_integrity(DatasetClass, group):
     if group and hasattr(dataset, "frequency_pd") and group in dataset.frequency_pd:
         expected_freq = dataset.frequency_pd[group]
         # We check frequency for each individual time series.
-        for unique_id, series_df in df.groupby("unique_id"):
+        for unique_id, series_df in df.groupby("unique_id", observed=False):
             # infer_freq needs at least 2 points, and more to be reliable.
             if len(series_df) > 2:
                 series_df = series_df.sort_values("ds")

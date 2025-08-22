@@ -118,6 +118,7 @@ class DataPipeline:
             "ME": (self._monthly_index, 12),
             "MS": (self._monthly_index, 12),
             "Q": (self._quarterly_index, 4),
+            "QE": (self._quarterly_index, 4),
             "QS": (self._quarterly_index, 4),
             "Y": (self._yearly_index, 1),
             "YS": (self._yearly_index, 1),
