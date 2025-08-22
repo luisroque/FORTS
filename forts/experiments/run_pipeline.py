@@ -1,3 +1,4 @@
+import gc
 import logging
 import sys
 import traceback
@@ -269,6 +270,11 @@ def main():
                                         window_size_source=H_TL,
                                         finetune=args.finetune,
                                     )
+                                del data_pipeline_transfer_learning
+                                del model_pipeline_transfer_learning
+                                del data_pipeline
+                                del model_pipeline
+                                gc.collect()
                     elif args.basic_forecasting:
                         all_models_exist = True
                         for model_name, _ in model_list:
