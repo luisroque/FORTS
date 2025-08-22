@@ -41,6 +41,12 @@ run_coreset_finetune() {
     echo "Coreset with fine-tuning complete."
 }
 
+run_in_domain() {
+    echo "Running in-domain..."
+    python -m forts.experiments.run_pipeline "$@"
+    echo "In-domain complete."
+}
+
 run_process_results() {
     echo "Processing results..."
     python -m forts.experiments.process_results
@@ -53,6 +59,7 @@ run_all() {
     run_transfer_learning_finetune
     run_coreset
     run_coreset_finetune
+    run_in_domain
     run_process_results
     echo "All experiments complete."
 }
@@ -62,7 +69,7 @@ run_all() {
 
 usage() {
     echo "Usage: $0 [experiment_name] [--use-gpu] [--model MODEL_NAME]"
-    echo "Available experiments: basic, transfer, transfer_finetune, coreset, coreset_finetune, process_results, all"
+    echo "Available experiments: basic, transfer, transfer_finetune, coreset, coreset_finetune, in_domain, process_results, all"
     echo "If 'all' or no experiment is specified, all experiments will be run."
     exit 1
 }
@@ -92,6 +99,9 @@ case "$experiment" in
         ;;
     coreset_finetune)
         run_coreset_finetune "$@"
+        ;;
+    in_domain)
+        run_in_domain "$@"
         ;;
     all)
         run_all "$@"
