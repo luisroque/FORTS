@@ -47,6 +47,12 @@ run_in_domain() {
     echo "In-domain complete."
 }
 
+run_process_efficiency() {
+    echo "Processing efficiency..."
+    python -m forts.experiments.process_efficiency "$@"
+    echo "Efficiency processing complete."
+}
+
 run_process_results() {
     echo "Processing results..."
     python -m forts.experiments.process_results
@@ -60,6 +66,7 @@ run_all() {
     run_coreset
     run_coreset_finetune
     run_in_domain
+    run_process_efficiency
     run_process_results
     echo "All experiments complete."
 }
@@ -69,7 +76,7 @@ run_all() {
 
 usage() {
     echo "Usage: $0 [experiment_name] [--use-gpu] [--model MODEL_NAME]"
-    echo "Available experiments: basic, transfer, transfer_finetune, coreset, coreset_finetune, in_domain, process_results, all"
+    echo "Available experiments: basic, transfer, transfer_finetune, coreset, coreset_finetune, in_domain, process_results, process_efficiency, all"
     echo "If 'all' or no experiment is specified, all experiments will be run."
     exit 1
 }
@@ -108,6 +115,9 @@ case "$experiment" in
         ;;
     process_results)
         run_process_results "$@"
+        ;;
+    process_efficiency)
+        run_process_efficiency "$@"
         ;;
     *)
         echo "Error: Invalid experiment name '$experiment'."

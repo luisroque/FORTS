@@ -1,42 +1,130 @@
+import json
+import os
+import time
+from concurrent.futures import ThreadPoolExecutor
+from typing import List
+
 import pandas as pd
+from tqdm import tqdm
 
-from forts.gcs_utils import gcs_list_files, gcs_read_csv, get_gcs_path
+from forts.gcs_utils import gcs_list_files, gcs_read_csv, gcs_write_csv, get_gcs_path
 
-base_path = get_gcs_path("model_weights_out_domain/hypertuning_final")
-plots_dir = get_gcs_path("plots")
-results_out_dir = get_gcs_path("results_forecast_out_domain_summary")
-
-
-performance_results = [
-    f.split("/")[-1]
-    for f in gcs_list_files(base_path, extension=".csv")
-    if not f.startswith("MIXED")
-]
-
-results_combined = []
-for result in performance_results:
-    csv_path = f"{base_path}/{result}"
-    df = gcs_read_csv(csv_path)
-
-    df["Dataset"] = result.split("_")[0]
-    df["Group"] = result.split("_")[1]
-    df["Method"] = result.split("_")[2]
-    df = df[["Dataset", "Group", "Method", "time_total_s", "loss"]]
-
-    results_combined.append(df)
-
-idx = (
-    pd.concat(results_combined, ignore_index=True)
-    .groupby(["Dataset", "Group", "Method"])["loss"]
-    .idxmin()
-)
-
-min_loss_df = pd.concat(results_combined, ignore_index=True).loc[idx]
+LOCAL_CACHE_DIR = "assets/results_cache"
 
 
-results_df = min_loss_df.groupby("Method")["time_total_s"].sum().reset_index()
+def get_local_cache_path(gcs_path: str) -> str:
+    """Converts a GCS path to a local cache path."""
+    if not gcs_path.startswith("gs://"):
+        return gcs_path
+    relative_path = gcs_path[5:]  # Remove "gs://"
+    return os.path.join(LOCAL_CACHE_DIR, relative_path)
 
-method_order = sorted(results_df["Method"].unique().tolist())
 
-csv_path = f"{results_out_dir}/training_time_stats_per_method.csv"
-results_df.to_csv(csv_path, index=False)
+def get_cached_file_list(
+    base_path: str, cache_duration_seconds: int = 3600
+) -> List[str]:
+    """Gets a list of files from GCS, using a local cache for the file list itself."""
+    list_cache_dir = os.path.join(LOCAL_CACHE_DIR, "_file_lists")
+    os.makedirs(list_cache_dir, exist_ok=True)
+
+    sanitized_path = base_path.replace("gs://", "").replace("/", "_")
+    list_cache_file = os.path.join(list_cache_dir, f"{sanitized_path}.json")
+
+    if os.path.exists(list_cache_file):
+        try:
+            cache_age = time.time() - os.path.getmtime(list_cache_file)
+            if cache_age < cache_duration_seconds:
+                with open(list_cache_file, "r") as f:
+                    return json.load(f)
+        except (IOError, json.JSONDecodeError):
+            pass  # Fall through to refetch
+
+    files = gcs_list_files(base_path, extension=".csv")
+    with open(list_cache_file, "w") as f:
+        json.dump(files, f)
+    return files
+
+
+def read_csv_with_cache(gcs_path: str) -> pd.DataFrame:
+    """Reads a CSV from GCS, using a local cache."""
+    local_path = get_local_cache_path(gcs_path)
+    if os.path.exists(local_path):
+        try:
+            return pd.read_csv(local_path)
+        except Exception:
+            # Fall through to re-download if local file is corrupt
+            pass  # nosec
+
+    df = gcs_read_csv(gcs_path)
+    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+    df.to_csv(local_path, index=False)
+    return df
+
+
+def main():
+    """Main function to process efficiency results."""
+    base_path = get_gcs_path("model_weights_coreset/hypertuning")
+    results_out_dir = get_gcs_path("results/results_summary")
+
+    performance_files = get_cached_file_list(base_path)
+
+    results_combined = []
+
+    with ThreadPoolExecutor() as executor:
+        # Use a wrapper to add file metadata during processing
+        def process_file(gcs_path):
+            file_name = os.path.basename(gcs_path)
+            if not file_name.startswith("MIXED"):
+                return None  # Only process coreset files
+
+            df = read_csv_with_cache(gcs_path)
+            parts = file_name.replace("_results.csv", "").split("_")
+
+            # Extract method from the end of the filename
+            method = parts[-1]
+            df["Method"] = method
+            df["Dataset"] = "MIXED"
+            df["Group"] = "MIXED"
+
+            return df[["Dataset", "Group", "Method", "time_total_s", "loss"]].dropna()
+
+        results_list = list(
+            tqdm(
+                executor.map(process_file, performance_files),
+                total=len(performance_files),
+                desc="Processing efficiency files",
+            )
+        )
+        results_combined = [r for r in results_list if r is not None]
+
+    if not results_combined:
+        print("No valid performance results found.")
+        return
+
+    full_df = pd.concat(results_combined, ignore_index=True)
+    idx = full_df.groupby(["Dataset", "Group", "Method"])["loss"].idxmin()
+    min_loss_df = full_df.loc[idx]
+
+    results_df = min_loss_df.groupby("Method")["time_total_s"].sum().reset_index()
+    results_df = results_df.sort_values(by="Method").reset_index(drop=True)
+
+    # Normalize by the fastest algorithm
+    min_time = results_df["time_total_s"].min()
+    results_df["Normalized Time (vs Fastest)"] = (
+        results_df["time_total_s"] / min_time
+    ).round(3)
+
+    # Save to GCS
+    gcs_csv_path = f"{results_out_dir}/training_time_stats_per_method.csv"
+    gcs_write_csv(results_df, gcs_csv_path)
+
+    # Save locally
+    local_csv_path = get_local_cache_path(gcs_csv_path)
+    os.makedirs(os.path.dirname(local_csv_path), exist_ok=True)
+    results_df.to_csv(local_csv_path, index=False)
+
+    print(f"Efficiency results saved to {gcs_csv_path} and {local_csv_path}")
+
+
+if __name__ == "__main__":
+    main()
