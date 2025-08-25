@@ -1,7 +1,11 @@
+import json
+import os
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 from forts.gcs_utils import (
     gcs_list_files,
@@ -17,6 +21,7 @@ BASE_BASIC_FORECASTING = get_gcs_path("results/results_forecast_basic_forecastin
 BASE_CORESET = get_gcs_path("results/results_forecast_coreset")
 SUMMARY_DIR = get_gcs_path("results/results_summary")
 FM_RESULTS_DIR = get_gcs_path("results/results_forecast_FM")
+LOCAL_CACHE_DIR = "assets/results_cache"
 
 
 FM_PATHS = {
@@ -25,21 +30,60 @@ FM_PATHS = {
 }
 
 
+def get_local_cache_path(gcs_path: str) -> str:
+    """Converts a GCS path to a local cache path."""
+    if not gcs_path.startswith("gs://"):
+        return gcs_path
+    relative_path = gcs_path[5:]  # Remove "gs://"
+    return os.path.join(LOCAL_CACHE_DIR, relative_path)
+
+
 def load_json_files(base_path: str, max_files: Optional[int] = None) -> pd.DataFrame:
     """
-    Load all JSON files from a GCS directory into a DataFrame.
+    Load all JSON files from a GCS directory into a DataFrame, using a local cache.
     """
     files = gcs_list_files(base_path, extension=".json")
 
     if max_files is not None:
         files = files[:max_files]
 
-    data = []
-    for file_path in files:
+    def process_file(gcs_file_path: str):
+        local_path = get_local_cache_path(gcs_file_path)
+
+        # If file is cached, read from local
+        if os.path.exists(local_path):
+            try:
+                with open(local_path, "r") as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, IOError) as e:
+                print(f"Error reading local file {local_path}, will refetch: {e}")
+                # Fall through to re-download if local file is corrupt
+
+        # If not cached or local read failed, download from GCS, save, then return content
         try:
-            data.append(gcs_read_json(file_path))
+            data = gcs_read_json(gcs_file_path)
+            if data is not None:
+                os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                with open(local_path, "w") as f:
+                    json.dump(data, f)
+            return data
         except Exception as e:
-            print(f"Error reading {file_path}: {e}")
+            print(f"Error processing GCS file {gcs_file_path}: {e}")
+            return None
+
+    with ThreadPoolExecutor() as executor:
+        results = list(
+            tqdm(
+                executor.map(process_file, files),
+                total=len(files),
+                desc=f"Processing files in {os.path.basename(base_path)}",
+            )
+        )
+
+    data = [item for item in results if item is not None]
+
+    if not data:
+        return pd.DataFrame()
 
     df = pd.DataFrame(data)
     return df
