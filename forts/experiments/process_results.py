@@ -199,7 +199,14 @@ def summarize_metric(
         if fname is None:
             stem = "_".join(aggregate_by)
             fname = f"{mode}_{metric.replace(' ','_').lower()}_{stem}.csv"
+
+        # Save to GCS
         gcs_write_csv(summary, f"{out_path}/{fname}")
+
+        # Save locally
+        local_dir = get_local_cache_path(out_path)
+        os.makedirs(local_dir, exist_ok=True)
+        summary.to_csv(f"{local_dir}/{fname}", index=False)
 
     return summary
 
@@ -240,13 +247,17 @@ def generate_latex_summary(
         return pd.DataFrame()
 
     final_summary = all_methods
-    count_summary = all_methods.copy()
 
     for name, df in scenarios.items():
         if df.empty:
-            mase = pd.DataFrame({"Method": [], f"{name}_MASE": []})
-            rank = pd.DataFrame({"Method": [], f"{name}_Rank": []})
-            counts = pd.DataFrame({"Method": [], f"{name}_Count": []})
+            summary = pd.DataFrame(
+                {
+                    "Method": [],
+                    f"{name}_MASE": [],
+                    f"{name}_Rank": [],
+                    f"{name}_Count": [],
+                }
+            )
         else:
             mase = summarize_metric(df, metric, "mean", aggregate_by=["Method"]).rename(
                 columns={metric: f"{name}_MASE"}
@@ -260,15 +271,27 @@ def generate_latex_summary(
             ).rename(columns={"Rank": f"{name}_Rank"})
             counts = df.groupby("Method").size().reset_index(name=f"{name}_Count")
 
-        summary = pd.merge(mase, rank, on="Method", how="outer")
+            summary = pd.merge(mase, rank, on="Method", how="outer")
+            summary = pd.merge(summary, counts, on="Method", how="outer")
+
         final_summary = pd.merge(final_summary, summary, on="Method", how="left")
-        count_summary = pd.merge(count_summary, counts, on="Method", how="left")
 
     final_summary = final_summary.sort_values(by="Method").reset_index(drop=True)
-    count_summary = count_summary.sort_values(by="Method").reset_index(drop=True)
 
+    # Round MASE and Rank columns to 3 decimal places
+    for col in final_summary.columns:
+        if "MASE" in col or "Rank" in col:
+            final_summary[col] = pd.to_numeric(
+                final_summary[col], errors="coerce"
+            ).round(3)
+
+    # Save to GCS
     gcs_write_csv(final_summary, f"{out_path}/latex_summary.csv")
-    gcs_write_csv(count_summary, f"{out_path}/latex_count_summary.csv")
+
+    # Save locally
+    local_dir = get_local_cache_path(out_path)
+    os.makedirs(local_dir, exist_ok=True)
+    final_summary.to_csv(f"{local_dir}/latex_summary.csv", index=False)
 
     return final_summary
 
