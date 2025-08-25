@@ -12,19 +12,24 @@ from forts.model_pipeline.timemoe import TimeMOE
 class AutoTimeMOE(BaseAuto):
 
     default_config = {
-        "hidden_size": tune.choice([32, 64]),
-        "intermediate_size": tune.choice([128, 256]),
-        "num_hidden_layers": tune.choice([1, 2]),
-        "num_attention_heads": tune.choice([2, 4]),
-        "num_experts": tune.choice([2, 4]),
-        "num_experts_per_tok": tune.choice([1]),
+        "hidden_size": tune.choice([32, 64, 128, 384]),
+        "intermediate_size": tune.choice([128, 256, 512, 1536]),
+        "num_hidden_layers": tune.choice([1, 2, 4]),
+        "num_attention_heads": tune.choice([2, 4, 8, 12]),
+        "num_experts": tune.choice([2, 4, 8]),
+        "num_experts_per_tok": tune.choice([1, 2]),
         "attention_dropout": tune.uniform(0.0, 0.2),
+        "hidden_act": tune.choice(["silu", "gelu"]),
+        "num_key_value_heads": tune.choice([1, 2, 4, 8]),
+        "rope_theta": tune.choice([10000, 20000]),
+        "max_position_embeddings": tune.choice([512, 4096]),
+        "router_aux_loss_factor": tune.loguniform(1e-2, 1e-1),
         "input_size_multiplier": [1, 2, 3, 4, 5],
         "learning_rate": tune.loguniform(1e-5, 1e-2),
         "scaler_type": tune.choice([None, "standard"]),
         "max_steps": tune.quniform(lower=500, upper=1500, q=100),
-        "batch_size": tune.choice([32, 64, 128]),
-        "windows_batch_size": tune.choice([64, 128]),
+        "batch_size": tune.choice([32, 64, 128, 256]),
+        "windows_batch_size": tune.choice([128, 256, 512]),
         "random_seed": tune.randint(lower=1, upper=20),
     }
 
