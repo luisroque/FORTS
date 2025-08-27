@@ -12,9 +12,9 @@ from forts.model_pipeline.timemoe import TimeMOE
 class AutoTimeMOE(BaseAuto):
 
     default_config = {
-        "hidden_size": tune.choice([32, 64, 128, 384]),
+        "hidden_size": tune.choice([64, 128, 384]),
         "intermediate_size": tune.choice([128, 256, 512, 1536]),
-        "num_hidden_layers": tune.choice([1, 2, 4]),
+        "num_hidden_layers": tune.choice([2, 4]),
         "num_attention_heads": tune.choice([2, 4, 8, 12]),
         "num_experts": tune.choice([2, 4, 8]),
         "num_experts_per_tok": tune.choice([1, 2]),
@@ -27,7 +27,7 @@ class AutoTimeMOE(BaseAuto):
         "input_size_multiplier": [1, 2, 3, 4, 5],
         "learning_rate": tune.loguniform(1e-5, 1e-2),
         "scaler_type": tune.choice([None, "standard"]),
-        "max_steps": tune.quniform(lower=500, upper=1500, q=100),
+        "max_steps": tune.choice([500, 1000, 2000]),
         "batch_size": tune.choice([32, 64, 128, 256]),
         "windows_batch_size": tune.choice([128, 256, 512]),
         "random_seed": tune.randint(lower=1, upper=20),
