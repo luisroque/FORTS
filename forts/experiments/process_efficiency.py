@@ -63,10 +63,13 @@ def read_csv_with_cache(gcs_path: str) -> pd.DataFrame:
 
 def main():
     """Main function to process efficiency results."""
-    base_path = get_gcs_path("model_weights_coreset/hypertuning")
+    base_path = get_gcs_path("model_weights/coreset/hypertuning")
     results_out_dir = get_gcs_path("results/results_summary")
 
+    print(f"Searching for performance files in: {base_path}")
     performance_files = get_cached_file_list(base_path)
+    print(f"Found {len(performance_files)} performance files.")
+    print(performance_files)
 
     results_combined = []
 
