@@ -63,13 +63,22 @@ def read_csv_with_cache(gcs_path: str) -> pd.DataFrame:
 
 def main():
     """Main function to process efficiency results."""
-    base_path = get_gcs_path("model_weights/coreset/hypertuning")
+    base_paths = [
+        get_gcs_path("model_weights/coreset/hypertuning"),
+        get_gcs_path("model_weights/basic_forecasting/hypertuning_basic_forecasting"),
+        get_gcs_path("model_weights/in_domain/hypertuning"),
+        get_gcs_path("model_weights/out_domain/hypertuning"),
+    ]
     results_out_dir = get_gcs_path("results/results_summary")
 
-    print(f"Searching for performance files in: {base_path}")
-    performance_files = get_cached_file_list(base_path)
-    print(f"Found {len(performance_files)} performance files.")
-    print(performance_files)
+    performance_files = []
+    for base_path in base_paths:
+        print(f"Searching for performance files in: {base_path}")
+        files = get_cached_file_list(base_path)
+        performance_files.extend(files)
+        print(f"Found {len(files)} performance files in {base_path}.")
+
+    print(f"Found {len(performance_files)} total performance files.")
 
     results_combined = []
 
@@ -77,19 +86,35 @@ def main():
         # Use a wrapper to add file metadata during processing
         def process_file(gcs_path):
             file_name = os.path.basename(gcs_path)
-            if not file_name.startswith("MIXED"):
-                return None  # Only process coreset files
-
             df = read_csv_with_cache(gcs_path)
             parts = file_name.replace("_results.csv", "").split("_")
 
             # Extract method from the end of the filename
-            method = parts[-1]
-            df["Method"] = method
-            df["Dataset"] = "MIXED"
-            df["Group"] = "MIXED"
+            if "coreset" in gcs_path:
+                if "TimeGEN" in parts:
+                    timegen_idx = parts.index("TimeGEN")
+                    method = "_".join(parts[timegen_idx:])
+                else:
+                    method = parts[-1]
+                dataset = "MIXED"
+                group = "MIXED"
+            else:
+                if "TimeGEN" in parts:
+                    timegen_idx = parts.index("TimeGEN")
+                    method = "_".join(parts[timegen_idx:])
+                else:
+                    method = parts[-1]
+                dataset = parts[0]
+                group = parts[1]
 
-            return df[["Dataset", "Group", "Method", "time_total_s", "loss"]].dropna()
+            df["Method"] = method
+            df["Dataset"] = dataset
+            df["Group"] = group
+            df["gcs_path"] = gcs_path
+
+            return df[
+                ["Dataset", "Group", "Method", "time_total_s", "loss", "gcs_path"]
+            ].dropna()
 
         results_list = list(
             tqdm(
@@ -108,14 +133,30 @@ def main():
     idx = full_df.groupby(["Dataset", "Group", "Method"])["loss"].idxmin()
     min_loss_df = full_df.loc[idx]
 
+    # Add the number of files used in the computation for each method
+    file_counts = (
+        full_df.groupby("Method")["gcs_path"]
+        .nunique()
+        .reset_index(name="Number of Files")
+    )
+
     results_df = min_loss_df.groupby("Method")["time_total_s"].sum().reset_index()
+    results_df = pd.merge(results_df, file_counts, on="Method")
     results_df = results_df.sort_values(by="Method").reset_index(drop=True)
 
-    # Normalize by the fastest algorithm
-    min_time = results_df["time_total_s"].min()
-    results_df["Normalized Time (vs Fastest)"] = (
-        results_df["time_total_s"] / min_time
-    ).round(3)
+    # Normalize by AutoTimeGEN
+    autotimegen_row = results_df[results_df["Method"] == "AutoTimeGEN"]
+    if not autotimegen_row.empty:
+        autotimegen_time = autotimegen_row["time_total_s"].iloc[0]
+        results_df["Normalized Time (vs AutoTimeGEN)"] = (
+            results_df["time_total_s"] / autotimegen_time
+        ).round(3)
+    else:
+        # Fallback to normalizing by the fastest algorithm if AutoTimeGEN is not found
+        min_time = results_df["time_total_s"].min()
+        results_df["Normalized Time (vs Fastest)"] = (
+            results_df["time_total_s"] / min_time
+        ).round(3)
 
     # Save to GCS
     gcs_csv_path = f"{results_out_dir}/training_time_stats_per_method.csv"

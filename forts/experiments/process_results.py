@@ -278,12 +278,16 @@ def generate_latex_summary(
 
     final_summary = final_summary.sort_values(by="Method").reset_index(drop=True)
 
-    # Round MASE and Rank columns to 3 decimal places
+    # Round MASE and Rank columns
     for col in final_summary.columns:
-        if "MASE" in col or "Rank" in col:
+        if "MASE" in col:
             final_summary[col] = pd.to_numeric(
                 final_summary[col], errors="coerce"
             ).round(3)
+        elif "Rank" in col:
+            final_summary[col] = pd.to_numeric(
+                final_summary[col], errors="coerce"
+            ).round(1)
 
     # Save to GCS
     gcs_write_csv(final_summary, f"{out_path}/latex_summary.csv")
