@@ -211,6 +211,137 @@ def summarize_metric(
     return summary
 
 
+def generate_granular_regime_summaries(
+    basic_df: pd.DataFrame,
+    in_domain_df: pd.DataFrame,
+    single_source_df: pd.DataFrame,
+    multi_source_df: pd.DataFrame,
+    metric: str,
+    out_path: str,
+) -> dict:
+    """
+    Generate granular summaries with models as rows and datasets as columns.
+    Returns one CSV per regime.
+    """
+    summaries = {}
+
+    regimes = {
+        "full_shot": basic_df,
+        "in_domain": in_domain_df,
+        "single_source": single_source_df,
+        "multi_source": multi_source_df,
+    }
+
+    for regime_name, df in regimes.items():
+        if df.empty:
+            print(f"Info: No data for regime {regime_name}")
+            continue
+
+        if regime_name == "single_source":
+            # For single-source, average by dataset source
+            summary = create_single_source_summary(df, metric)
+        else:
+            # For other regimes, standard dataset-method pivot
+            summary = create_standard_summary(df, metric, regime_name)
+
+        if not summary.empty:
+            summaries[regime_name] = summary
+
+            # Save to GCS
+            filename = f"{regime_name}_granular_summary.csv"
+            gcs_write_csv(summary, f"{out_path}/{filename}")
+
+            # Save locally
+            local_dir = get_local_cache_path(out_path)
+            os.makedirs(local_dir, exist_ok=True)
+            summary.to_csv(f"{local_dir}/{filename}", index=False)
+
+            print(
+                f"Generated {regime_name} summary: {summary.shape[0]} methods × {summary.shape[1]-1} datasets"
+            )
+
+    return summaries
+
+
+def create_single_source_summary(df: pd.DataFrame, metric: str) -> pd.DataFrame:
+    """
+    Create summary for single-source regime, averaging by dataset source.
+    Models as rows, target datasets as columns.
+    """
+    if df.empty:
+        return pd.DataFrame()
+
+    # Create combined dataset identifier (Dataset + Frequency)
+    df = df.copy()
+    df["Dataset_Frequency"] = df["Dataset Target"] + "_" + df["Dataset Group Target"]
+
+    # Group by Method, Dataset Source, Dataset_Frequency and take mean of metric
+    grouped = (
+        df.groupby(["Method", "Dataset Source", "Dataset_Frequency"])[metric]
+        .mean()
+        .reset_index()
+    )
+
+    # Now average across dataset sources for each method-target pair
+    final_grouped = (
+        grouped.groupby(["Method", "Dataset_Frequency"])[metric].mean().reset_index()
+    )
+
+    # Pivot to get methods as rows, datasets as columns
+    pivot = final_grouped.pivot(
+        index="Method", columns="Dataset_Frequency", values=metric
+    )
+
+    # Reset index to make Method a column
+    summary = pivot.reset_index()
+
+    # Fill NaN with appropriate values and round
+    numeric_cols = summary.select_dtypes(include=[np.number]).columns
+    summary[numeric_cols] = summary[numeric_cols].round(3)
+
+    return summary
+
+
+def create_standard_summary(
+    df: pd.DataFrame, metric: str, regime_name: str
+) -> pd.DataFrame:
+    """
+    Create standard summary with models as rows, datasets as columns.
+    """
+    if df.empty:
+        return pd.DataFrame()
+
+    # Create combined dataset identifier (Dataset + Frequency)
+    df = df.copy()
+    if regime_name == "multi_source":
+        # For multi-source, use target dataset and frequency
+        df["Dataset_Frequency"] = (
+            df["Dataset Target"] + "_" + df["Dataset Group Target"]
+        )
+        dataset_col = "Dataset_Frequency"
+    else:
+        # For full-shot and in-domain, use target dataset and frequency
+        df["Dataset_Frequency"] = (
+            df["Dataset Target"] + "_" + df["Dataset Group Target"]
+        )
+        dataset_col = "Dataset_Frequency"
+
+    # Group by Method and Dataset, take mean of metric
+    grouped = df.groupby(["Method", dataset_col])[metric].mean().reset_index()
+
+    # Pivot to get methods as rows, datasets as columns
+    pivot = grouped.pivot(index="Method", columns=dataset_col, values=metric)
+
+    # Reset index to make Method a column
+    summary = pivot.reset_index()
+
+    # Fill NaN with appropriate values and round
+    numeric_cols = summary.select_dtypes(include=[np.number]).columns
+    summary[numeric_cols] = summary[numeric_cols].round(3)
+
+    return summary
+
+
 def generate_latex_summary(
     basic_df: pd.DataFrame,
     in_domain_df: pd.DataFrame,
@@ -369,6 +500,7 @@ def main(max_files: Optional[int] = None, output_path: Optional[str] = None):
     # Use provided output path or default
     final_output_path = output_path if output_path is not None else SUMMARY_DIR
 
+    # Generate original latex summary
     generate_latex_summary(
         basic_df=basic_for_df,
         in_domain_df=in_df,
@@ -377,6 +509,19 @@ def main(max_files: Optional[int] = None, output_path: Optional[str] = None):
         metric=metric,
         out_path=final_output_path,
     )
+
+    # Generate new granular regime summaries
+    print("\nGenerating granular regime summaries...")
+    granular_summaries = generate_granular_regime_summaries(
+        basic_df=basic_for_df,
+        in_domain_df=in_df,
+        single_source_df=out_df,
+        multi_source_df=multi_source_df,
+        metric=metric,
+        out_path=final_output_path,
+    )
+
+    return granular_summaries
 
 
 if __name__ == "__main__":

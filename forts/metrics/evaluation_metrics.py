@@ -38,18 +38,21 @@ def mase(y_true, y_pred, h, m: int = 1):
     if mask.sum() == 0:
         return np.nan
 
-    # Ensure there are enough points for seasonal differencing
-    if len(y_true_insample) < m + 1:
-        return np.nan  # Not enough data to calculate seasonal difference
+    # Calculate scale for MASE.
+    scale = np.nan
+    # 1. Try seasonal difference.
+    if len(y_true_insample) >= m + 1:
+        scale = np.mean(np.abs(y_true_insample[m:] - y_true_insample[:-m]))
 
-    scale = np.mean(np.abs(y_true_insample[m:] - y_true_insample[:-m]))
-    if np.isclose(scale, 0) or np.isnan(scale):
-        # Fallback to non-seasonal differencing
-        if len(y_true_insample) < 2:
-            return np.nan  # Not enough data for non-seasonal difference
-        scale = np.mean(np.abs(y_true_insample[1:] - y_true_insample[:-1]))
-        if np.isclose(scale, 0) or np.isnan(scale):
-            return np.nan
+    # 2. Fallback to non-seasonal difference if seasonal is invalid or not possible.
+    if np.isnan(scale) or np.isclose(scale, 0):
+        if len(y_true_insample) >= 2:
+            scale = np.mean(np.abs(y_true_insample[1:] - y_true_insample[:-1]))
+        else:
+            scale = np.nan
+
+    if np.isnan(scale) or np.isclose(scale, 0):
+        return np.nan
 
     mase_value = np.nanmean(np.abs(y_true_h - y_pred_h)) / scale
     return float(mase_value)
@@ -89,12 +92,20 @@ def rmsse(y_true, y_pred, h: int, m: int = 1):
     mse_forecast = np.mean((y_true_h[mask] - y_pred_h[mask]) ** 2)
 
     m = max(1, m)
-    # Ensure there are enough points for differencing
-    if len(y_true_insample) < m + 1:
-        return np.nan
+    # Calculate denominator for RMSSE.
+    denom = np.nan
+    # 1. Try seasonal difference.
+    if len(y_true_insample) >= m + 1:
+        denom = np.mean((y_true_insample[m:] - y_true_insample[:-m]) ** 2)
 
-    denom = np.mean((y_true_insample[m:] - y_true_insample[:-m]) ** 2)
-    if np.isclose(denom, 0) or np.isnan(denom):
+    # 2. Fallback to non-seasonal difference if seasonal is invalid or not possible.
+    if np.isnan(denom) or np.isclose(denom, 0):
+        if len(y_true_insample) >= 2:
+            denom = np.mean((y_true_insample[1:] - y_true_insample[:-1]) ** 2)
+        else:
+            denom = np.nan
+
+    if np.isnan(denom) or np.isclose(denom, 0):
         return np.nan
 
     return float(np.sqrt(mse_forecast / denom))
