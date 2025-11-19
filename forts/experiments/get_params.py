@@ -6,6 +6,9 @@ from neuralforecast.auto import (
     AutoPatchTST,
     AutoTFT,
     AutoTSMixer,
+    AutoxLSTM,
+    AutoTimeMixer,
+    AutoNBEATS
 )
 
 from forts.gcs_utils import gcs_list_files, gcs_write_csv, get_gcs_path
@@ -15,7 +18,6 @@ BASE_DIR = get_gcs_path("model_weights_out_domain/hypertuning")
 OUTPUT_CSV = "model_parameter_counts.csv"
 results_out_dir = get_gcs_path("results_forecast_out_domain_summary")
 
-
 MODEL_CLASSES = {
     ("AutoNHITS", AutoNHITS),
     ("AutoTFT", AutoTFT),
@@ -23,6 +25,9 @@ MODEL_CLASSES = {
     ("AutoTSMixer", AutoTSMixer),
     ("AutoiTransformer", AutoiTransformer),
     ("AutoKAN", AutoKAN),
+    ("AutoxLSTM", AutoxLSTM),
+    ("AutoTimeMixer", AutoTimeMixer),
+    ("AutoNBEATS", AutoNBEATS),
 }
 
 
