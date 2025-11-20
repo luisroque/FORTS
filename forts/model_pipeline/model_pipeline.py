@@ -193,7 +193,7 @@ class ModelPipeline(_ModelListMixin):
         for name, ModelClass in models_to_train:
             print(f"\n=== Handling {name} ===")
             if name in ("AutoTSMixer", "AutoiTransformer", "AutoTimeMixer"):
-                n_series_ = original_series_count if name == "AutoTimeMixer" else 1
+                n_series_ = filtered_series_count if name == "AutoTimeMixer" else 1
 
                 init_kwargs = dict(
                     h=self.h,
