@@ -9,9 +9,12 @@
 #   experiment_name: The experiment to run from run_all_experiments.sh
 #                    (e.g., basic, coreset, transfer_finetune). Defaults to 'all'.
 #   machine_type:    The machine profile to use for the job.
-#                    Options: cpu-medium, cpu-fast, gpu-medium, gpu-fast. Defaults to 'cpu-medium'.
+#                    CPU Options: cpu-medium (n2-standard-8), cpu-fast (n2-standard-16),
+#                                 cpu-ultra (n2-standard-32), cpu-compute (c2-standard-16)
+#                    GPU Options: gpu-medium (T4), gpu-fast (L4), gpu-ultra (2x L4)
+#                    Defaults to 'cpu-medium'.
 #   additional_args: Any additional arguments to pass to the experiment script.
-#                    For example, `--model AutoNHITS`.
+#                    For example, `--model AutoTimeMixer`.
 
 # Exit immediately if a command exits with a non-zero status.
 set -e
@@ -48,10 +51,16 @@ ADDITIONAL_ARGS=("$@")
 GPU_FLAG=""
 case "$MACHINE_TYPE_KEY" in
     cpu-medium)
-        MACHINE_SPEC="machine-type=n1-standard-8"
+        MACHINE_SPEC="machine-type=n2-standard-8"
         ;;
     cpu-fast)
-        MACHINE_SPEC="machine-type=n1-standard-16"
+        MACHINE_SPEC="machine-type=n2-standard-16"
+        ;;
+    cpu-ultra)
+        MACHINE_SPEC="machine-type=n2-standard-32"
+        ;;
+    cpu-compute)
+        MACHINE_SPEC="machine-type=c2-standard-16"
         ;;
     gpu-medium)
         MACHINE_SPEC="machine-type=n1-standard-8,accelerator-type=NVIDIA_TESLA_T4,accelerator-count=1"
@@ -61,9 +70,13 @@ case "$MACHINE_TYPE_KEY" in
         MACHINE_SPEC="machine-type=n1-standard-16,accelerator-type=NVIDIA_L4,accelerator-count=1"
         GPU_FLAG="--use-gpu"
         ;;
+    gpu-ultra)
+        MACHINE_SPEC="machine-type=n1-standard-32,accelerator-type=NVIDIA_L4,accelerator-count=2"
+        GPU_FLAG="--use-gpu"
+        ;;
     *)
         echo "Error: Invalid machine type '$MACHINE_TYPE_KEY'."
-        echo "Available types: cpu-medium, cpu-fast, gpu-medium, gpu-fast"
+        echo "Available types: cpu-medium, cpu-fast, cpu-ultra, cpu-compute, gpu-medium, gpu-fast, gpu-ultra"
         exit 1
         ;;
 esac
