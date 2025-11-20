@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.nn.functional as F
-from neuralforecast.common._base_windows import BaseWindows
+from neuralforecast.common._base_model import BaseModel
 from neuralforecast.losses.pytorch import MAE
 from torch import nn
 from torch.utils.checkpoint import checkpoint
@@ -1370,12 +1370,12 @@ class TimeMoeForPrediction(TimeMoePreTrainedModel, TSGenerationMixin):
         return reordered_past
 
 
-class TimeMOE(BaseWindows):
+class TimeMOE(BaseModel):
     """TimeMOE
 
     The TimeMOE model is a time-series forecasting model that uses a Mixture-of-Experts (MoE) architecture.
     This implementation integrates the TimeMOE model into the neuralforecast framework by inheriting from the
-    BaseWindows class, which provides the data handling and training loop infrastructure for window-based models.
+    BaseModel class, which provides the data handling and training loop infrastructure for window-based models.
 
     Parameters
     ----------
@@ -1547,10 +1547,12 @@ class TimeMOE(BaseWindows):
 
         outputs = self.model(input_ids=insample_y)
 
-        # Reshape to (batch_size, horizon)
-        forecast = outputs.logits.reshape(insample_y.shape[0], -1)
+        # outputs.logits shape: (batch_size, seq_len, input_size * horizon_length)
+        # We only need predictions from the last sequence position
+        forecast = outputs.logits[:, -1, :]  # (batch_size, input_size * horizon_length)
 
-        # Take the last h steps
-        forecast = forecast[:, -self.h :]
+        # Reshape to (batch_size, horizon_length) - forecast is currently (batch_size, h)
+        # Need to add a dimension to make it (batch_size, horizon_length, 1) for univariate
+        forecast = forecast.unsqueeze(-1)  # (batch_size, horizon_length, 1)
 
         return forecast

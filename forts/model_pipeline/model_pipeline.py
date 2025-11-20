@@ -6,14 +6,15 @@ import torch
 from neuralforecast.auto import (
     AutoiTransformer,
     AutoKAN,
+    AutoNBEATS,
     AutoNHITS,
     AutoPatchTST,
     AutoTFT,
+    AutoTimeMixer,
     AutoTSMixer,
     AutoxLSTM,
-    AutoTimeMixer,
-    AutoNBEATS
 )
+from neuralforecast.models.timemixer import TimeMixer
 from ray import tune
 
 from forts.experiments.helper import _pad_for_unsupported_models
@@ -22,10 +23,31 @@ from forts.gcs_utils import (
     gcs_write_csv,
     get_model_weights_path,
 )
-
-# from forts.model_pipeline.auto.AutoModels import AutoTimeMOE
+from forts.model_pipeline.auto.AutoModels import AutoTimeMOE
 from forts.model_pipeline.core.core_extension import CustomNeuralForecast
 from forts.visualization.model_visualization import plot_generated_vs_original
+
+
+class UnivariateTimeMixer(TimeMixer):
+    SAMPLING_TYPE = "windows"
+    MULTIVARIATE = False
+
+    def __init__(self, n_series, **kwargs):
+        # force n_series to 1 for univariate mode internals
+        # force valid_batch_size=1 to avoid NaN predictions bug in neuralforecast
+        # when processing batched predictions with MULTIVARIATE=False
+        kwargs["valid_batch_size"] = 1
+        kwargs["limit_val_batches"] = 64
+        super().__init__(n_series=1, **kwargs)
+        self.enc_in = 1
+        self.c_out = 1
+
+
+class AutoUnivariateTimeMixer(AutoTimeMixer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.cls_model = UnivariateTimeMixer
+
 
 AutoModelType = Union[
     AutoNHITS,
@@ -34,10 +56,11 @@ AutoModelType = Union[
     AutoiTransformer,
     AutoTSMixer,
     AutoTFT,
-  # AutoTimeMOE,
+    AutoTimeMOE,
     AutoxLSTM,
     AutoTimeMixer,
-    AutoNBEATS
+    AutoUnivariateTimeMixer,
+    AutoNBEATS,
 ]
 
 
@@ -49,15 +72,15 @@ class _ModelListMixin:
     """
 
     MODEL_LIST: list[tuple[str, AutoModelType]] = [
-        # ("AutoNHITS", AutoNHITS),
-        # ("AutoKAN", AutoKAN),
-        # ("AutoPatchTST", AutoPatchTST),
-        # ("AutoiTransformer", AutoiTransformer),
-        # ("AutoTSMixer", AutoTSMixer),
-        # ("AutoTFT", AutoTFT),
-        # ("AutoTimeMOE", AutoTimeMOE),
+        ("AutoNHITS", AutoNHITS),
+        ("AutoKAN", AutoKAN),
+        ("AutoPatchTST", AutoPatchTST),
+        ("AutoiTransformer", AutoiTransformer),
+        ("AutoTSMixer", AutoTSMixer),
+        ("AutoTFT", AutoTFT),
+        ("AutoTimeMOE", AutoTimeMOE),
         ("AutoxLSTM", AutoxLSTM),
-        ("AutoTimeMixer", AutoTimeMixer),
+        ("AutoTimeMixer", AutoUnivariateTimeMixer),
         ("AutoNBEATS", AutoNBEATS),
     ]
 
@@ -120,14 +143,14 @@ class ModelPipeline(_ModelListMixin):
         self.models = {}
 
     def hyper_tune_and_train(
-            self,
-            dataset_source,
-            dataset_group_source,
-            max_evals=20,
-            mode="in_domain",
-            test_mode: bool = False,
-            max_steps: int = None,
-            model_list=None,
+        self,
+        dataset_source,
+        dataset_group_source,
+        max_evals=20,
+        mode="in_domain",
+        test_mode: bool = False,
+        max_steps: int = None,
+        model_list=None,
     ):
         """
         Trains and hyper-tunes all six models.
@@ -193,11 +216,11 @@ class ModelPipeline(_ModelListMixin):
         for name, ModelClass in models_to_train:
             print(f"\n=== Handling {name} ===")
             if name in ("AutoTSMixer", "AutoiTransformer", "AutoTimeMixer"):
-                n_series_ = filtered_series_count if name == "AutoTimeMixer" else 1
+                n_series_arg = 1
 
                 init_kwargs = dict(
                     h=self.h,
-                    n_series=n_series_,
+                    n_series=n_series_arg,
                     num_samples=max_evals,
                     verbose=True,
                     cpus=num_cpus,
@@ -206,7 +229,7 @@ class ModelPipeline(_ModelListMixin):
                 base_config = ModelClass.get_default_config(
                     h=self.h,
                     backend="ray",
-                    n_series=n_series_,
+                    n_series=n_series_arg,
                 )
                 base_config["scaler_type"] = tune.choice([None, "standard"])
                 base_config["log_every_n_steps"] = 5
@@ -239,7 +262,7 @@ class ModelPipeline(_ModelListMixin):
                 # These models do not support start_padding_enabled, so we pad manually
                 # We need to determine the max input_size that will be tuned
                 if "input_size" in base_config and isinstance(
-                        base_config["input_size"], tune.search.sample.Categorical
+                    base_config["input_size"], tune.search.sample.Categorical
                 ):
                     max_input_size = max(base_config["input_size"].categories)
                 else:
@@ -296,13 +319,13 @@ class ModelPipeline(_ModelListMixin):
         print("\nAll Auto-models have been trained/tuned or loaded from disk.\n")
 
     def finetune(
-            self,
-            model_name: str,
-            nf_model: CustomNeuralForecast,
-            dataset_source: str,
-            dataset_group_source: str,
-            test_mode: bool = False,
-            max_steps: int = 10,
+        self,
+        model_name: str,
+        nf_model: CustomNeuralForecast,
+        dataset_source: str,
+        dataset_group_source: str,
+        test_mode: bool = False,
+        max_steps: int = 10,
     ):
         """
         Fine-tunes a given model for 10 epochs on the new target training data.
@@ -349,7 +372,7 @@ class ModelPipeline(_ModelListMixin):
 
     @staticmethod
     def _mark_context_rows(
-            group: pd.DataFrame, window_size_source: int, horizon: int, mode: str
+        group: pd.DataFrame, window_size_source: int, horizon: int, mode: str
     ) -> pd.DataFrame:
         """
         Given rows for a single unique_id (already sorted by ds),
@@ -367,11 +390,11 @@ class ModelPipeline(_ModelListMixin):
         return group.iloc[:last_window_end].copy()
 
     def _preprocess_context(
-            self,
-            window_size: int,
-            test_set: pd.DataFrame,
-            window_size_source: int = None,
-            mode: str = None,
+        self,
+        window_size: int,
+        test_set: pd.DataFrame,
+        window_size_source: int = None,
+        mode: str = None,
     ) -> pd.DataFrame:
         if not window_size_source:
             window_size_source = window_size
@@ -403,17 +426,17 @@ class ModelPipeline(_ModelListMixin):
         return group.iloc[:last_window_end].copy()
 
     def predict_from_last_window_one_pass(
-            self,
-            model: CustomNeuralForecast,
-            window_size: int,
-            window_size_source: int,
-            dataset_target: str,
-            dataset_group_target: str,
-            dataset_source: str,
-            dataset_group_source: str,
-            freq: str,
-            h: int,
-            mode: str = "in_domain",
+        self,
+        model: CustomNeuralForecast,
+        window_size: int,
+        window_size_source: int,
+        dataset_target: str,
+        dataset_group_target: str,
+        dataset_source: str,
+        dataset_group_source: str,
+        freq: str,
+        h: int,
+        mode: str = "in_domain",
     ) -> pd.DataFrame:
         """
         Predicts exactly the last horizon h points for each test series in a single pass.
@@ -453,7 +476,7 @@ class ModelPipeline(_ModelListMixin):
             # Replaces the groupby().apply() with a more efficient version
             df_y_hat = df_y_hat_raw.loc[
                 df_y_hat_raw.groupby("unique_id").cumcount() < window_size
-                ].copy()
+            ].copy()
             df_y_hat = df_y_hat.reset_index(drop=True)
 
             df_y_hat.sort_values(["unique_id", "ds"], inplace=True)
@@ -476,6 +499,10 @@ class ModelPipeline(_ModelListMixin):
                 f"Unsupported mode: '{mode}'. Supported modes are: "
                 "'in_domain', 'out_domain', 'basic_forecasting'."
             )
+
+        # Drop NaN predictions
+        if not df_y_hat.empty:
+            df_y_hat = df_y_hat.dropna(subset=[model_name])
 
         df_y_hat.rename(columns={model_name: "y"}, inplace=True)
         df_y_hat["y"] = df_y_hat["y"].clip(lower=0)
@@ -518,10 +545,10 @@ class ModelPipelineCoreset(ModelPipeline):
     """
 
     def __init__(
-            self,
-            long_df: pd.DataFrame,
-            freq: str,
-            h: int,
+        self,
+        long_df: pd.DataFrame,
+        freq: str,
+        h: int,
     ):
         self.freq = freq
         self.h = h
