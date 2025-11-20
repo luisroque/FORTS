@@ -6,11 +6,15 @@ import torch
 from neuralforecast.auto import (
     AutoiTransformer,
     AutoKAN,
+    AutoNBEATS,
     AutoNHITS,
     AutoPatchTST,
     AutoTFT,
+    AutoTimeMixer,
     AutoTSMixer,
+    AutoxLSTM,
 )
+from neuralforecast.models.timemixer import TimeMixer
 from ray import tune
 
 from forts.experiments.helper import _pad_for_unsupported_models
@@ -23,6 +27,28 @@ from forts.model_pipeline.auto.AutoModels import AutoTimeMOE
 from forts.model_pipeline.core.core_extension import CustomNeuralForecast
 from forts.visualization.model_visualization import plot_generated_vs_original
 
+
+class UnivariateTimeMixer(TimeMixer):
+    SAMPLING_TYPE = "windows"
+    MULTIVARIATE = False
+
+    def __init__(self, n_series, **kwargs):
+        # force n_series to 1 for univariate mode internals
+        # force valid_batch_size=1 to avoid NaN predictions bug in neuralforecast
+        # when processing batched predictions with MULTIVARIATE=False
+        kwargs["valid_batch_size"] = 1
+        kwargs["limit_val_batches"] = 64
+        super().__init__(n_series=1, **kwargs)
+        self.enc_in = 1
+        self.c_out = 1
+
+
+class AutoUnivariateTimeMixer(AutoTimeMixer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.cls_model = UnivariateTimeMixer
+
+
 AutoModelType = Union[
     AutoNHITS,
     AutoKAN,
@@ -31,6 +57,10 @@ AutoModelType = Union[
     AutoTSMixer,
     AutoTFT,
     AutoTimeMOE,
+    AutoxLSTM,
+    AutoTimeMixer,
+    AutoUnivariateTimeMixer,
+    AutoNBEATS,
 ]
 
 
@@ -49,6 +79,9 @@ class _ModelListMixin:
         ("AutoTSMixer", AutoTSMixer),
         ("AutoTFT", AutoTFT),
         ("AutoTimeMOE", AutoTimeMOE),
+        ("AutoxLSTM", AutoxLSTM),
+        ("AutoTimeMixer", AutoUnivariateTimeMixer),
+        ("AutoNBEATS", AutoNBEATS),
     ]
 
     def get_model_list(self):
@@ -182,10 +215,12 @@ class ModelPipeline(_ModelListMixin):
 
         for name, ModelClass in models_to_train:
             print(f"\n=== Handling {name} ===")
-            if name in ("AutoTSMixer", "AutoiTransformer"):
+            if name in ("AutoTSMixer", "AutoiTransformer", "AutoTimeMixer"):
+                n_series_arg = 1
+
                 init_kwargs = dict(
                     h=self.h,
-                    n_series=1,
+                    n_series=n_series_arg,
                     num_samples=max_evals,
                     verbose=True,
                     cpus=num_cpus,
@@ -194,7 +229,7 @@ class ModelPipeline(_ModelListMixin):
                 base_config = ModelClass.get_default_config(
                     h=self.h,
                     backend="ray",
-                    n_series=1,
+                    n_series=n_series_arg,
                 )
                 base_config["scaler_type"] = tune.choice([None, "standard"])
                 base_config["log_every_n_steps"] = 5
@@ -464,6 +499,10 @@ class ModelPipeline(_ModelListMixin):
                 f"Unsupported mode: '{mode}'. Supported modes are: "
                 "'in_domain', 'out_domain', 'basic_forecasting'."
             )
+
+        # Drop NaN predictions
+        if not df_y_hat.empty:
+            df_y_hat = df_y_hat.dropna(subset=[model_name])
 
         df_y_hat.rename(columns={model_name: "y"}, inplace=True)
         df_y_hat["y"] = df_y_hat["y"].clip(lower=0)

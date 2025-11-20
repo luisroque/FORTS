@@ -5,7 +5,8 @@ scikit-learn==1.5.2
 scikit-optimize==0.10.2
 huggingface-hub==0.26.1
 datasetsforecast==1.0.0
-neuralforecast==2.0.0
+neuralforecast==3.1.2
+xlstm==2.0.0
 gluonts==0.15.1
 orjson==3.10.18
 gcsfs==2025.7.0
