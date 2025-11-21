@@ -16,8 +16,10 @@ from neuralforecast.auto import (
     AutoxLSTM,
 )
 from neuralforecast.models.timemixer import TimeMixer
+from neuralforecast.models.xlstm import xLSTM
 from ray import tune
 
+from forts.config import MAX_EVALS
 from forts.experiments.helper import _pad_for_unsupported_models
 from forts.gcs_utils import (
     _get_local_fallback_path,
@@ -50,6 +52,48 @@ class AutoUnivariateTimeMixer(AutoTimeMixer):
         self.cls_model = UnivariateTimeMixer
 
 
+class FixedxLSTM(xLSTM):
+    """
+    Custom xLSTM wrapper that sets validation and inference parameters to avoid NaN predictions.
+    Similar to UnivariateTimeMixer, this forces specific batch sizes and limits
+    validation batches to prevent NaN issues during prediction.
+
+    Also enforces minimum input_size >= 3*h to prevent tensor dimension errors.
+    """
+
+    def __init__(self, **kwargs):
+        # Force valid_batch_size=1 to avoid NaN predictions bug
+        kwargs["valid_batch_size"] = 1
+        kwargs["limit_val_batches"] = 64
+
+        # Ensure input_size >= 3*h (xLSTM requirement)
+        h = kwargs.get("h")
+        if h is not None and "input_size" in kwargs:
+            min_input_size = 3 * h
+            if kwargs["input_size"] < min_input_size:
+                print(
+                    f"[FixedxLSTM] Adjusting input_size from {kwargs['input_size']} "
+                    f"to {min_input_size} (xLSTM requires input_size >= 3*h)"
+                )
+                kwargs["input_size"] = min_input_size
+
+        # Set inference_input_size to match input_size for consistent behavior
+        if "inference_input_size" not in kwargs and "input_size" in kwargs:
+            kwargs["inference_input_size"] = kwargs["input_size"]
+
+        super().__init__(**kwargs)
+
+
+class AutoFixedxLSTM(AutoxLSTM):
+    """
+    Auto wrapper for FixedxLSTM that uses the fixed version as the underlying model.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.cls_model = FixedxLSTM
+
+
 AutoModelType = Union[
     AutoNHITS,
     AutoKAN,
@@ -59,6 +103,7 @@ AutoModelType = Union[
     AutoTFT,
     AutoTimeMOE,
     AutoxLSTM,
+    AutoFixedxLSTM,
     AutoTimeMixer,
     AutoUnivariateTimeMixer,
     AutoNBEATS,
@@ -80,7 +125,7 @@ class _ModelListMixin:
         ("AutoTSMixer", AutoTSMixer),
         ("AutoTFT", AutoTFT),
         ("AutoTimeMOE", AutoTimeMOE),
-        ("AutoxLSTM", AutoxLSTM),
+        ("AutoxLSTM", AutoFixedxLSTM),
         ("AutoTimeMixer", AutoUnivariateTimeMixer),
         ("AutoNBEATS", AutoNBEATS),
     ]
@@ -261,7 +306,7 @@ class ModelPipeline(_ModelListMixin):
         self,
         dataset_source,
         dataset_group_source,
-        max_evals=20,
+        max_evals=MAX_EVALS,
         mode="in_domain",
         test_mode: bool = False,
         max_steps: int = None,
@@ -438,13 +483,25 @@ class ModelPipeline(_ModelListMixin):
                         continue
 
                     # Extract the valid configuration
-                    valid_config = best_valid_trial.to_dict()
-                    valid_loss = valid_config.pop("loss")
-                    valid_config.pop("train_loss", None)
-                    # Remove iteration count if present
-                    valid_config.pop("iter", None)
+                    trial_dict = best_valid_trial.to_dict()
+                    valid_loss = trial_dict.pop("loss", None)
 
-                    # ensure input_size >= 3 * h
+                    # Extract only the config parameters (those with 'config/' prefix)
+                    valid_config = {}
+                    for key, value in trial_dict.items():
+                        if key.startswith("config/"):
+                            # Remove the 'config/' prefix
+                            param_name = key.replace("config/", "")
+                            valid_config[param_name] = value
+
+                    # Remove metadata parameters
+                    valid_config.pop("step_size", None)
+                    valid_config.pop("start_padding_enabled", None)
+                    valid_config.pop("log_every_n_steps", None)
+                    valid_config.pop("valid_loss", None)
+                    valid_config.pop("h", None)  # h is passed separately
+
+                    # ensure input_size >= 3 * h for xLSTM-based models
                     if "input_size" in valid_config:
                         min_input_size = 3 * self.h
                         if valid_config["input_size"] < min_input_size:
@@ -472,9 +529,15 @@ class ModelPipeline(_ModelListMixin):
                     # We don't use the Auto wrapper here because it would run Ray Tune again
                     actual_model_class = model.models[0].cls_model
 
+                    # Preserve the results from the original Auto model for validation
+                    original_results = model.models[0].results
+
                     # Create a new instance with the valid configuration
                     # The underlying model will handle input_size validation
                     refitted_model = actual_model_class(h=self.h, **valid_config)
+
+                    # Attach the results to the refitted model for validation
+                    refitted_model.results = original_results
 
                     # Refit with the valid configuration
                     model_refitted = CustomNeuralForecast(

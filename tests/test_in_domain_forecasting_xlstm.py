@@ -3,11 +3,10 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
-from neuralforecast.auto import AutoxLSTM
 
 from forts.data_pipeline.data_pipeline_setup import DataPipeline
 from forts.metrics.evaluation_pipeline import evaluation_pipeline_forts_forecast
-from forts.model_pipeline.model_pipeline import ModelPipeline
+from forts.model_pipeline.model_pipeline import AutoFixedxLSTM, ModelPipeline
 
 
 @pytest.fixture
@@ -21,7 +20,7 @@ def setup_pipeline():
         window_size=24,
     )
     mp = ModelPipeline(data_pipeline=dp)
-    mp.MODEL_LIST = [("AutoxLSTM", AutoxLSTM)]
+    mp.MODEL_LIST = [("AutoxLSTM", AutoFixedxLSTM)]
     return dp, mp
 
 

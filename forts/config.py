@@ -7,6 +7,11 @@ from dotenv import load_dotenv
 from google.api_core.exceptions import ClientError
 from google.cloud import secretmanager
 
+# --- Hyperparameter Configuration ---
+
+# Default number of hyperparameter tuning evaluations
+MAX_EVALS = 20
+
 # --- Environment Variable and Secret Configuration ---
 
 # GCP Secret Manager names (also used as environment variable keys)

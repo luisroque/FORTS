@@ -3,6 +3,7 @@ import logging
 import sys
 import traceback
 
+from forts.config import MAX_EVALS
 from forts.data_pipeline.data_pipeline_setup import (
     DataPipeline,
     build_mixed_trainval,
@@ -159,7 +160,7 @@ def main():
                     h=mixed_h,
                 )
                 mixed_mp.hyper_tune_and_train(
-                    max_evals=20,
+                    max_evals=MAX_EVALS,
                     mode="out_domain_coreset",
                     dataset_source=dataset_source,
                     dataset_group_source=dataset_group,
@@ -238,7 +239,7 @@ def main():
                                     data_pipeline=data_pipeline_transfer_learning
                                 )
                                 model_pipeline_transfer_learning.hyper_tune_and_train(
-                                    max_evals=20,
+                                    max_evals=MAX_EVALS,
                                     mode="out_domain",
                                     dataset_source=DATASET_TL,
                                     dataset_group_source=DATASET_GROUP_TL,
@@ -300,7 +301,7 @@ def main():
                         data_pipeline = get_data_pipeline(DATASET, subgroup)
                         model_pipeline = ModelPipeline(data_pipeline=data_pipeline)
                         model_pipeline.hyper_tune_and_train(
-                            max_evals=20,
+                            max_evals=MAX_EVALS,
                             mode="basic_forecasting",
                             dataset_source=DATASET,
                             dataset_group_source=DATASET_GROUP,
@@ -347,7 +348,7 @@ def main():
                         data_pipeline = get_data_pipeline(DATASET, subgroup)
                         model_pipeline = ModelPipeline(data_pipeline=data_pipeline)
                         model_pipeline.hyper_tune_and_train(
-                            max_evals=20,
+                            max_evals=MAX_EVALS,
                             mode="in_domain",
                             dataset_source=DATASET,
                             dataset_group_source=DATASET_GROUP,

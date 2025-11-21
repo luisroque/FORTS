@@ -3,11 +3,10 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
-from neuralforecast.auto import AutoxLSTM
 
 from forts.data_pipeline.data_pipeline_setup import DataPipeline
 from forts.metrics.evaluation_pipeline import evaluation_pipeline_forts_forecast
-from forts.model_pipeline.model_pipeline import ModelPipeline
+from forts.model_pipeline.model_pipeline import AutoFixedxLSTM, ModelPipeline
 
 
 @pytest.fixture
@@ -22,7 +21,7 @@ def setup_pipelines():
         window_size=24,
     )
     source_mp = ModelPipeline(data_pipeline=source_dp)
-    source_mp.MODEL_LIST = [("AutoxLSTM", AutoxLSTM)]
+    source_mp.MODEL_LIST = [("AutoxLSTM", AutoFixedxLSTM)]
 
     # Target dataset: Tourism Monthly (different from source)
     target_dp = DataPipeline(
@@ -33,7 +32,7 @@ def setup_pipelines():
         window_size=24,
     )
     target_mp = ModelPipeline(data_pipeline=target_dp)
-    target_mp.MODEL_LIST = [("AutoxLSTM", AutoxLSTM)]
+    target_mp.MODEL_LIST = [("AutoxLSTM", AutoFixedxLSTM)]
 
     return source_mp, target_mp, source_dp, target_dp
 
