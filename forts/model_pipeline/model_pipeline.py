@@ -88,6 +88,36 @@ class _ModelListMixin:
     def get_model_list(self):
         return self.MODEL_LIST
 
+    def _get_best_valid_trial(self, results: pd.DataFrame, model_name: str):
+        """
+        Get the best trial that has a valid (non-zero, non-NaN, non-Inf) loss.
+
+        Parameters
+        ----------
+        results : pd.DataFrame
+            Results dataframe from Ray Tune hyperparameter search
+        model_name : str
+            Name of the model for logging
+
+        Returns
+        -------
+        pd.Series or None
+            The best valid trial, or None if no valid trials exist
+        """
+        # Filter out invalid trials
+        valid_results = results[
+            (results["loss"] > 0)
+            & (results["loss"].notna())
+            & (~results["loss"].isin([np.inf, -np.inf]))
+        ]
+
+        if len(valid_results) == 0:
+            return None
+
+        # Return the trial with the lowest valid loss
+        best_valid_trial = valid_results.loc[valid_results["loss"].idxmin()]
+        return best_valid_trial
+
     def _validate_trained_model(
         self, model, model_name: str, trainval_data: pd.DataFrame
     ) -> None:
@@ -119,19 +149,26 @@ class _ModelListMixin:
 
         if best_loss == 0.0 or np.isnan(best_loss) or np.isinf(best_loss):
             print(
-                f"[WARNING] Best trial for {model_name} has suspicious loss value: {best_loss}. "
-                "This may indicate a degenerate model that will produce NaN predictions!"
+                f"[WARNING] Ray Tune selected a trial with suspicious loss={best_loss} for {model_name}!"
             )
-            # Filter out invalid trials
-            valid_results = results[
-                (results["loss"] > 0)
-                & (results["loss"].notna())
-                & (~results["loss"].isin([np.inf, -np.inf]))
-            ]
-            if len(valid_results) > 0:
+
+            # Try to find the best valid trial
+            best_valid_trial = self._get_best_valid_trial(results, model_name)
+
+            if best_valid_trial is not None:
+                valid_loss = best_valid_trial["loss"]
+                invalid_count = len(results) - len(
+                    results[
+                        (results["loss"] > 0)
+                        & (results["loss"].notna())
+                        & (~results["loss"].isin([np.inf, -np.inf]))
+                    ]
+                )
                 print(
-                    f"Found {len(valid_results)} valid trials out of {len(results)} total trials. "
-                    f"Consider re-running with more trials or different hyperparameter ranges."
+                    f"[INFO] Found best valid trial with loss={valid_loss:.4f}. "
+                    f"Discarded {invalid_count}/{len(results)} trials with invalid loss. "
+                    f"NOTE: The model was already trained with the degenerate trial. "
+                    f"Recommend re-running with adjusted hyperparameters to avoid loss=0 trials."
                 )
             else:
                 raise ValueError(
@@ -141,32 +178,29 @@ class _ModelListMixin:
                 )
 
         # Check 2: Sanity check - make predictions on a small sample to detect NaN outputs
-        try:
-            sample_size = min(3, len(trainval_data["unique_id"].unique()))
-            sample_ids = trainval_data["unique_id"].unique()[:sample_size]
-            sample_df = trainval_data[
-                trainval_data["unique_id"].isin(sample_ids)
-            ].copy()
+        sample_size = min(3, len(trainval_data["unique_id"].unique()))
+        sample_ids = trainval_data["unique_id"].unique()[:sample_size]
+        sample_df = trainval_data[trainval_data["unique_id"].isin(sample_ids)].copy()
 
-            sanity_preds = model.predict(df=sample_df)
-            pred_col = str(model.models[0])
-            if pred_col in sanity_preds.columns:
-                nan_count = sanity_preds[pred_col].isna().sum()
-                total_count = len(sanity_preds)
-                if nan_count > 0:
-                    nan_pct = (nan_count / total_count) * 100
-                    print(
-                        f"[WARNING] Sanity check: {model_name} produced {nan_count}/{total_count} "
-                        f"({nan_pct:.1f}%) NaN predictions on training sample! "
-                        "This model may not generalize well."
+        sanity_preds = model.predict(df=sample_df)
+        pred_col = str(model.models[0])
+        if pred_col in sanity_preds.columns:
+            nan_count = sanity_preds[pred_col].isna().sum()
+            total_count = len(sanity_preds)
+            if nan_count > 0:
+                nan_pct = (nan_count / total_count) * 100
+                print(
+                    f"[WARNING] Sanity check: {model_name} produced {nan_count}/{total_count} "
+                    f"({nan_pct:.1f}%) NaN predictions on training sample! "
+                    "This model may not generalize well."
+                )
+                if nan_pct > 50:
+                    error_msg = (
+                        f"{model_name} produced {nan_pct:.1f}% NaN predictions on training data. "
+                        "This model is not usable. Please try different hyperparameters or a different model."
                     )
-                    if nan_pct > 50:
-                        raise ValueError(
-                            f"{model_name} produced {nan_pct:.1f}% NaN predictions on training data. "
-                            "This model is not usable. Please try different hyperparameters or a different model."
-                        )
-        except Exception as sanity_error:
-            print(f"[WARNING] Sanity check failed for {model_name}: {sanity_error}")
+                    print(f"[ERROR] {error_msg}")
+                    raise ValueError(error_msg)
 
 
 class ModelPipeline(_ModelListMixin):
@@ -381,8 +415,76 @@ class ModelPipeline(_ModelListMixin):
                     val_size=self.h,
                 )
 
-                # Validate the fitted model - check for degenerate solutions
-                self._validate_trained_model(model, name, local_trainval_long)
+                # Check if Ray Tune selected a degenerate trial and refit with best valid one
+                results = model.models[0].results.get_dataframe()
+                best_trial = results.loc[results["loss"].idxmin()]
+                best_loss = best_trial["loss"]
+
+                if best_loss == 0.0 or np.isnan(best_loss) or np.isinf(best_loss):
+                    print(
+                        f"[WARNING] Ray Tune selected a degenerate trial with loss={best_loss} for {name}!"
+                    )
+
+                    # Find the best valid trial
+                    best_valid_trial = self._get_best_valid_trial(results, name)
+
+                    if best_valid_trial is None:
+                        print(
+                            f"[ERROR] All {len(results)} trials for {name} resulted in invalid loss values."
+                        )
+                        print(
+                            f"[SKIP] Not saving {name} - no usable configuration found."
+                        )
+                        continue
+
+                    # Extract the valid configuration
+                    valid_config = best_valid_trial.to_dict()
+                    valid_loss = valid_config.pop("loss")
+                    valid_config.pop("train_loss", None)
+                    # Remove iteration count if present
+                    valid_config.pop("iter", None)
+
+                    invalid_count = len(results) - len(
+                        results[
+                            (results["loss"] > 0)
+                            & (results["loss"].notna())
+                            & (~results["loss"].isin([np.inf, -np.inf]))
+                        ]
+                    )
+
+                    print(
+                        f"[INFO] Refitting {name} with best valid trial "
+                        f"(loss={valid_loss:.4f}). "
+                        f"Discarded {invalid_count}/{len(results)} degenerate trials."
+                    )
+
+                    # Get the actual model class from the fitted Auto model
+                    # The Auto model wraps the actual model class
+                    actual_model_class = model.models[0].cls_model
+
+                    # Create a new instance with the valid configuration
+                    valid_model_instance = actual_model_class(h=self.h, **valid_config)
+
+                    # Refit with the valid configuration
+                    model_refitted = CustomNeuralForecast(
+                        models=[valid_model_instance], freq=self.freq
+                    )
+                    model_refitted.fit(df=local_trainval_long, val_size=self.h)
+                    model = model_refitted
+
+                    print(f"[SUCCESS] {name} refitted with valid configuration.")
+
+                # Validate the fitted model - sanity check for NaN predictions
+                # This will raise ValueError if the model produces >50% NaN
+                try:
+                    self._validate_trained_model(model, name, local_trainval_long)
+                except ValueError as e:
+                    print(f"[ERROR] Validation failed for {name}: {e}")
+                    print(
+                        f"[SKIP] Not saving {name} - model produces too many NaN predictions."
+                    )
+                    # Don't add to self.models and continue to next model
+                    continue
 
                 try:
                     model.save(path=nf_save_path, overwrite=True, save_dataset=False)
