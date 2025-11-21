@@ -10,11 +10,10 @@ class UnivariateTimeMixer(TimeMixer):
 
     def __init__(self, n_series, **kwargs):
         # Force n_series to 1 for univariate mode internals
-        # We must do this because TimeMixer uses n_series for channel dimensions
-        # but windows sampling provides 1 channel.
         # Force valid_batch_size=1 to avoid NaN predictions bug in neuralforecast
         # when processing batched predictions with MULTIVARIATE=False
         kwargs["valid_batch_size"] = 1
+        kwargs["limit_val_batches"] = 64
         super().__init__(n_series=1, **kwargs)
         self.enc_in = 1
         self.c_out = 1

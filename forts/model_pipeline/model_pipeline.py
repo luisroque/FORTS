@@ -444,6 +444,16 @@ class ModelPipeline(_ModelListMixin):
                     # Remove iteration count if present
                     valid_config.pop("iter", None)
 
+                    # ensure input_size >= 3 * h
+                    if "input_size" in valid_config:
+                        min_input_size = 3 * self.h
+                        if valid_config["input_size"] < min_input_size:
+                            print(
+                                f"[FIX] Adjusting input_size from {valid_config['input_size']} "
+                                f"to {min_input_size} for {name} (xLSTM requires input_size >= 3*h)"
+                            )
+                            valid_config["input_size"] = min_input_size
+
                     invalid_count = len(results) - len(
                         results[
                             (results["loss"] > 0)

@@ -4,7 +4,7 @@ with loss=0 or that produce NaN predictions, and properly refits with
 the best valid trial.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
@@ -310,3 +310,139 @@ def test_refitted_model_with_small_input_size():
         # Other exceptions might be okay (e.g., training issues in test environment)
         print(f"Note: Got exception during fit (may be expected in test env): {e}")
         # As long as we didn't get the dimension error, the fix is working
+
+
+def test_model_pipeline_input_size_adjustment_in_refitting():
+    """
+    Test that actually calls the model_pipeline.py code to verify input_size
+    adjustment happens during refitting. Uses minimal mocking.
+    """
+    from neuralforecast.auto import AutoxLSTM
+
+    from forts.data_pipeline.data_pipeline_setup import DataPipeline
+    from forts.model_pipeline.core.core_extension import CustomNeuralForecast
+    from forts.model_pipeline.model_pipeline import ModelPipeline
+
+    h = 12
+
+    # Setup pipeline
+    dp = DataPipeline(
+        dataset_name="Tourism",
+        dataset_group="Monthly",
+        freq="ME",
+        horizon=h,
+        window_size=h,
+    )
+    mp = ModelPipeline(data_pipeline=dp)
+    mp.MODEL_LIST = [("AutoxLSTM", AutoxLSTM)]
+
+    # Minimal training data
+    np.random.seed(42)
+    n_obs = 50
+    train_data = pd.DataFrame(
+        {
+            "unique_id": [0] * n_obs,
+            "ds": pd.date_range("2020-01-01", periods=n_obs, freq="ME"),
+            "y": np.random.randn(n_obs).cumsum() + 100,
+        }
+    )
+
+    # Override trainval_long with our minimal data
+    mp.trainval_long = train_data
+
+    # Mock the hyperparameter tuning to return degenerate results with input_size=h
+    mock_results_df = pd.DataFrame(
+        {
+            "loss": [0.0, 557.12],  # Degenerate best trial
+            "train_loss": [0.0, 520.0],
+            "encoder_hidden_size": [32, 64],
+            "encoder_n_blocks": [2, 2],
+            "encoder_dropout": [0.94, 0.4],
+            "decoder_hidden_size": [16, 32],
+            "learning_rate": [0.07, 0.001],
+            "scaler_type": [None, "standard"],
+            "max_steps": [5, 5],  # Very small
+            "batch_size": [32, 32],
+            "windows_batch_size": [64, 64],
+            "random_seed": [17, 16],
+            "input_size": [h, h],  # PROBLEM: input_size = h
+        }
+    )
+
+    # Track if the actual model_pipeline code adjusts input_size
+    adjusted_input_sizes = []
+
+    original_init = AutoxLSTM.__init__
+
+    def tracking_init(self, *args, **kwargs):
+        # Capture the config passed to AutoxLSTM during refitting
+        if "config" in kwargs and "input_size" in kwargs["config"]:
+            adjusted_input_sizes.append(kwargs["config"]["input_size"])
+        return original_init(self, *args, **kwargs)
+
+    # Create a function that makes fit() set mock results and return self
+    CustomNeuralForecast.fit
+
+    def patched_fit(self, df, val_size=None, **kwargs):
+        # Set mock results on the model
+        mock_results_obj = MagicMock()
+        mock_results_obj.get_dataframe.return_value = mock_results_df
+        self.models[0].results = mock_results_obj
+        # Set _fitted flag so predict() doesn't fail during validation
+        self._fitted = True
+        # Return self (important!)
+        return self
+
+    with patch.object(AutoxLSTM, "__init__", side_effect=tracking_init, autospec=True):
+        with patch.object(CustomNeuralForecast, "fit", new=patched_fit):
+            with patch.object(CustomNeuralForecast, "save"):
+                # Mock predict to avoid validation errors
+                with patch.object(
+                    CustomNeuralForecast,
+                    "predict",
+                    return_value=pd.DataFrame({"AutoxLSTM": [100.0]}),
+                ):
+                    # Force the code to train from scratch by mocking load to fail
+                    with patch.object(
+                        CustomNeuralForecast,
+                        "load",
+                        side_effect=FileNotFoundError("Simulated: no cached model"),
+                    ):
+                        try:
+                            # Call the ACTUAL model_pipeline code
+                            mp.hyper_tune_and_train(
+                                dataset_source="Tourism",
+                                dataset_group_source="Monthly",
+                                max_evals=2,
+                                mode="out_domain",  # Sets input_size=h initially
+                                test_mode=True,
+                                max_steps=5,
+                            )
+
+                            # Verify the actual code adjusted input_size during refitting
+                            print(f"Input sizes seen: {adjusted_input_sizes}")
+                            assert (
+                                len(adjusted_input_sizes) > 0
+                            ), "Should have instantiated models"
+
+                            # The refitting should use adjusted input_size=3*h
+                            refitting_input_sizes = [
+                                s for s in adjusted_input_sizes if s == 3 * h
+                            ]
+                            assert len(refitting_input_sizes) > 0, (
+                                f"Model pipeline should have adjusted input_size to {3*h} during refitting. "
+                                f"Got: {adjusted_input_sizes}"
+                            )
+
+                            print(
+                                f"✓ model_pipeline.py correctly adjusted input_size to {3*h}"
+                            )
+
+                        except RuntimeError as e:
+                            if "negative dimension" in str(e):
+                                pytest.fail(
+                                    f"FAILED: model_pipeline.py refitting code did not prevent "
+                                    f"tensor dimension error: {e}"
+                                )
+                            else:
+                                raise
