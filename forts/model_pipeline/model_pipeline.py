@@ -458,16 +458,20 @@ class ModelPipeline(_ModelListMixin):
                         f"Discarded {invalid_count}/{len(results)} degenerate trials."
                     )
 
-                    # Get the actual model class from the fitted Auto model
-                    # The Auto model wraps the actual model class
-                    actual_model_class = model.models[0].cls_model
-
-                    # Create a new instance with the valid configuration
-                    valid_model_instance = actual_model_class(h=self.h, **valid_config)
+                    # Use the Auto model class (ModelClass) instead of the underlying model class
+                    # The Auto wrapper handles parameter initialization properly
+                    # We set num_samples=1 to fit with the specific configuration
+                    auto_model_refit = ModelClass(
+                        h=self.h,
+                        config=valid_config,
+                        num_samples=1,
+                        cpus=num_cpus,
+                        gpus=gpus,
+                    )
 
                     # Refit with the valid configuration
                     model_refitted = CustomNeuralForecast(
-                        models=[valid_model_instance], freq=self.freq
+                        models=[auto_model_refit], freq=self.freq
                     )
                     model_refitted.fit(df=local_trainval_long, val_size=self.h)
                     model = model_refitted
