@@ -1,6 +1,7 @@
 import os
 from typing import Union
 
+import numpy as np
 import pandas as pd
 import torch
 from neuralforecast.auto import (
@@ -86,6 +87,86 @@ class _ModelListMixin:
 
     def get_model_list(self):
         return self.MODEL_LIST
+
+    def _validate_trained_model(
+        self, model, model_name: str, trainval_data: pd.DataFrame
+    ) -> None:
+        """
+        Validate a trained model to detect degenerate solutions.
+
+        This method performs two checks:
+        1. Checks if the best trial has suspicious loss values (0, NaN, Inf)
+        2. Runs a sanity check by making predictions on a small sample to detect NaN outputs
+
+        Parameters
+        ----------
+        model : CustomNeuralForecast
+            The trained model to validate
+        model_name : str
+            Name of the model for logging
+        trainval_data : pd.DataFrame
+            Training/validation data for sanity check predictions
+
+        Raises
+        ------
+        ValueError
+            If all trials have invalid loss values or if the model produces >50% NaN predictions
+        """
+        # Check 1: Validate loss values from hyperparameter tuning
+        results = model.models[0].results.get_dataframe()
+        best_trial = results.loc[results["loss"].idxmin()]
+        best_loss = best_trial["loss"]
+
+        if best_loss == 0.0 or np.isnan(best_loss) or np.isinf(best_loss):
+            print(
+                f"[WARNING] Best trial for {model_name} has suspicious loss value: {best_loss}. "
+                "This may indicate a degenerate model that will produce NaN predictions!"
+            )
+            # Filter out invalid trials
+            valid_results = results[
+                (results["loss"] > 0)
+                & (results["loss"].notna())
+                & (~results["loss"].isin([np.inf, -np.inf]))
+            ]
+            if len(valid_results) > 0:
+                print(
+                    f"Found {len(valid_results)} valid trials out of {len(results)} total trials. "
+                    f"Consider re-running with more trials or different hyperparameter ranges."
+                )
+            else:
+                raise ValueError(
+                    f"All {len(results)} trials for {model_name} resulted in invalid loss values "
+                    "(0, NaN, or Inf). This model configuration is not working. "
+                    "Please check the data, model settings, or try a different model."
+                )
+
+        # Check 2: Sanity check - make predictions on a small sample to detect NaN outputs
+        try:
+            sample_size = min(3, len(trainval_data["unique_id"].unique()))
+            sample_ids = trainval_data["unique_id"].unique()[:sample_size]
+            sample_df = trainval_data[
+                trainval_data["unique_id"].isin(sample_ids)
+            ].copy()
+
+            sanity_preds = model.predict(df=sample_df)
+            pred_col = str(model.models[0])
+            if pred_col in sanity_preds.columns:
+                nan_count = sanity_preds[pred_col].isna().sum()
+                total_count = len(sanity_preds)
+                if nan_count > 0:
+                    nan_pct = (nan_count / total_count) * 100
+                    print(
+                        f"[WARNING] Sanity check: {model_name} produced {nan_count}/{total_count} "
+                        f"({nan_pct:.1f}%) NaN predictions on training sample! "
+                        "This model may not generalize well."
+                    )
+                    if nan_pct > 50:
+                        raise ValueError(
+                            f"{model_name} produced {nan_pct:.1f}% NaN predictions on training data. "
+                            "This model is not usable. Please try different hyperparameters or a different model."
+                        )
+        except Exception as sanity_error:
+            print(f"[WARNING] Sanity check failed for {model_name}: {sanity_error}")
 
 
 class ModelPipeline(_ModelListMixin):
@@ -300,6 +381,9 @@ class ModelPipeline(_ModelListMixin):
                     val_size=self.h,
                 )
 
+                # Validate the fitted model - check for degenerate solutions
+                self._validate_trained_model(model, name, local_trainval_long)
+
                 try:
                     model.save(path=nf_save_path, overwrite=True, save_dataset=False)
                 except Exception as e:
@@ -309,6 +393,7 @@ class ModelPipeline(_ModelListMixin):
 
                 print(f"Saved {name} NeuralForecast object to {nf_save_path}")
 
+                # Save hyperparameter tuning results
                 results = model.models[0].results.get_dataframe()
                 results_file = f"{save_dir}/{dataset_source}_{dataset_group_source}_{name}_results.csv"
                 gcs_write_csv(results, results_file)

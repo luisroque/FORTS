@@ -112,13 +112,24 @@ def evaluation_pipeline_forts_forecast(
         print(f"[Last Window ({mode})] No forecast results found.")
         row_forecast[f"Forecast SMAPE MEAN (last window) Per Series_{mode}"] = None
     else:
+        # Check for NaN predictions BEFORE dropping them
+        total_predictions = len(forecast_df_last_window_horizon)
+        nan_predictions = forecast_df_last_window_horizon["y"].isna().sum()
+        if nan_predictions > 0:
+            nan_percentage = (nan_predictions / total_predictions) * 100
+            print(
+                f"[WARNING] Model {model_name} produced {nan_predictions}/{total_predictions} "
+                f"({nan_percentage:.2f}%) NaN predictions for {dataset}/{dataset_group}!"
+            )
+
         forecast_horizon = forecast_df_last_window_horizon.dropna(
             subset=["y", "y_true"]
         ).copy()
         if forecast_horizon.empty:
             print(
-                f"[Last Window ({mode})] No valid y,y_true pairs. "
-                "Can't compute sMAPE."
+                f"[Last Window ({mode})] No valid y,y_true pairs after dropping NaN. "
+                f"Model {model_name} likely produced all NaN predictions! "
+                "Can't compute metrics."
             )
             row_forecast[f"Forecast SMAPE (last window) Per Series_{mode}"] = None
         else:

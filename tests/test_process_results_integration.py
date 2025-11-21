@@ -50,8 +50,8 @@ def test_process_results_integration_with_cache():
 
     # Ensure cache is clean before starting
     if os.path.exists(cache_dir):
-        shutil.rmtree(cache_dir)
-    os.makedirs(cache_dir)
+        shutil.rmtree(cache_dir, ignore_errors=True)
+    os.makedirs(cache_dir, exist_ok=True)
 
     print("Running process_results.main() with caching enabled...")
     pr.main(max_files=3, output_path=test_summary_dir)
@@ -83,6 +83,6 @@ def test_process_results_integration_with_cache():
         print(f"GCS cleanup failed for {out_csv}: {e}")
     finally:
         if os.path.exists(cache_dir):
-            shutil.rmtree(cache_dir)
+            shutil.rmtree(cache_dir, ignore_errors=True)
 
     print("Integration test with caching completed successfully!")
