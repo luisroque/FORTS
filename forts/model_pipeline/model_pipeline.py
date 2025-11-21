@@ -468,20 +468,17 @@ class ModelPipeline(_ModelListMixin):
                         f"Discarded {invalid_count}/{len(results)} degenerate trials."
                     )
 
-                    # Use the Auto model class (ModelClass) instead of the underlying model class
-                    # The Auto wrapper handles parameter initialization properly
-                    # We set num_samples=1 to fit with the specific configuration
-                    auto_model_refit = ModelClass(
-                        h=self.h,
-                        config=valid_config,
-                        num_samples=1,
-                        cpus=num_cpus,
-                        gpus=gpus,
-                    )
+                    # Get the underlying model class and instantiate directly
+                    # We don't use the Auto wrapper here because it would run Ray Tune again
+                    actual_model_class = model.models[0].cls_model
+
+                    # Create a new instance with the valid configuration
+                    # The underlying model will handle input_size validation
+                    refitted_model = actual_model_class(h=self.h, **valid_config)
 
                     # Refit with the valid configuration
                     model_refitted = CustomNeuralForecast(
-                        models=[auto_model_refit], freq=self.freq
+                        models=[refitted_model], freq=self.freq
                     )
                     model_refitted.fit(df=local_trainval_long, val_size=self.h)
                     model = model_refitted

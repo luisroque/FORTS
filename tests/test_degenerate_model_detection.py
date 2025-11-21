@@ -318,6 +318,7 @@ def test_model_pipeline_input_size_adjustment_in_refitting():
     adjustment happens during refitting. Uses minimal mocking.
     """
     from neuralforecast.auto import AutoxLSTM
+    from neuralforecast.models.xlstm import xLSTM
 
     from forts.data_pipeline.data_pipeline_setup import DataPipeline
     from forts.model_pipeline.core.core_extension import CustomNeuralForecast
@@ -370,15 +371,38 @@ def test_model_pipeline_input_size_adjustment_in_refitting():
     )
 
     # Track if the actual model_pipeline code adjusts input_size
+    # We need to track BOTH AutoxLSTM (for hypertuning) and xLSTM (for refitting)
     adjusted_input_sizes = []
+    xlstm_init_calls = []
 
-    original_init = AutoxLSTM.__init__
+    original_auto_init = AutoxLSTM.__init__
+    xLSTM.__init__
 
-    def tracking_init(self, *args, **kwargs):
-        # Capture the config passed to AutoxLSTM during refitting
-        if "config" in kwargs and "input_size" in kwargs["config"]:
-            adjusted_input_sizes.append(kwargs["config"]["input_size"])
-        return original_init(self, *args, **kwargs)
+    def tracking_auto_init(self, *args, **kwargs):
+        # Capture the config passed to AutoxLSTM during hypertuning
+        if (
+            "config" in kwargs
+            and isinstance(kwargs["config"], dict)
+            and "input_size" in kwargs["config"]
+        ):
+            adjusted_input_sizes.append(("AutoxLSTM", kwargs["config"]["input_size"]))
+        return original_auto_init(self, *args, **kwargs)
+
+    def tracking_xlstm_init(self, *args, **kwargs):
+        # Capture direct xLSTM instantiation (should happen during refitting)
+        if "input_size" in kwargs:
+            xlstm_init_calls.append(kwargs["input_size"])
+            adjusted_input_sizes.append(("xLSTM", kwargs["input_size"]))
+        # Don't call original - we don't want to actually create the model
+        # Just set required attributes
+        self.h = kwargs.get("h", 24)
+        self.input_size = kwargs.get("input_size", 24)
+        self._fitted = False
+        self.alias = kwargs.get("alias", "xLSTM")
+        # Add other attributes that might be accessed during validation
+        self.futr_exog_list = kwargs.get("futr_exog_list", None)
+        self.hist_exog_list = kwargs.get("hist_exog_list", None)
+        self.stat_exog_list = kwargs.get("stat_exog_list", None)
 
     # Create a function that makes fit() set mock results and return self
     CustomNeuralForecast.fit
@@ -393,56 +417,69 @@ def test_model_pipeline_input_size_adjustment_in_refitting():
         # Return self (important!)
         return self
 
-    with patch.object(AutoxLSTM, "__init__", side_effect=tracking_init, autospec=True):
-        with patch.object(CustomNeuralForecast, "fit", new=patched_fit):
-            with patch.object(CustomNeuralForecast, "save"):
-                # Mock predict to avoid validation errors
-                with patch.object(
-                    CustomNeuralForecast,
-                    "predict",
-                    return_value=pd.DataFrame({"AutoxLSTM": [100.0]}),
-                ):
-                    # Force the code to train from scratch by mocking load to fail
+    with patch.object(
+        AutoxLSTM, "__init__", side_effect=tracking_auto_init, autospec=True
+    ):
+        with patch.object(
+            xLSTM, "__init__", side_effect=tracking_xlstm_init, autospec=True
+        ):
+            with patch.object(CustomNeuralForecast, "fit", new=patched_fit):
+                with patch.object(CustomNeuralForecast, "save"):
+                    # Mock predict to avoid validation errors
                     with patch.object(
                         CustomNeuralForecast,
-                        "load",
-                        side_effect=FileNotFoundError("Simulated: no cached model"),
+                        "predict",
+                        return_value=pd.DataFrame({"AutoxLSTM": [100.0]}),
                     ):
-                        try:
-                            # Call the ACTUAL model_pipeline code
-                            mp.hyper_tune_and_train(
-                                dataset_source="Tourism",
-                                dataset_group_source="Monthly",
-                                max_evals=2,
-                                mode="out_domain",  # Sets input_size=h initially
-                                test_mode=True,
-                                max_steps=5,
-                            )
-
-                            # Verify the actual code adjusted input_size during refitting
-                            print(f"Input sizes seen: {adjusted_input_sizes}")
-                            assert (
-                                len(adjusted_input_sizes) > 0
-                            ), "Should have instantiated models"
-
-                            # The refitting should use adjusted input_size=3*h
-                            refitting_input_sizes = [
-                                s for s in adjusted_input_sizes if s == 3 * h
-                            ]
-                            assert len(refitting_input_sizes) > 0, (
-                                f"Model pipeline should have adjusted input_size to {3*h} during refitting. "
-                                f"Got: {adjusted_input_sizes}"
-                            )
-
-                            print(
-                                f"✓ model_pipeline.py correctly adjusted input_size to {3*h}"
-                            )
-
-                        except RuntimeError as e:
-                            if "negative dimension" in str(e):
-                                pytest.fail(
-                                    f"FAILED: model_pipeline.py refitting code did not prevent "
-                                    f"tensor dimension error: {e}"
+                        # Force the code to train from scratch by mocking load to fail
+                        with patch.object(
+                            CustomNeuralForecast,
+                            "load",
+                            side_effect=FileNotFoundError("Simulated: no cached model"),
+                        ):
+                            try:
+                                # Call the ACTUAL model_pipeline code
+                                mp.hyper_tune_and_train(
+                                    dataset_source="Tourism",
+                                    dataset_group_source="Monthly",
+                                    max_evals=2,
+                                    mode="out_domain",  # Sets input_size=h initially
+                                    test_mode=True,
+                                    max_steps=5,
                                 )
-                            else:
-                                raise
+
+                                # Verify the actual code adjusted input_size during refitting
+                                print(
+                                    f"All model instantiations: {adjusted_input_sizes}"
+                                )
+                                print(f"Direct xLSTM calls: {xlstm_init_calls}")
+
+                                # The key fix: refitting should use xLSTM directly (not AutoxLSTM)
+                                # and with input_size >= 3*h
+                                assert len(xlstm_init_calls) > 0, (
+                                    "Model pipeline should instantiate xLSTM directly for refitting "
+                                    "(not AutoxLSTM to avoid Ray Tune workers)"
+                                )
+
+                                # Verify xLSTM was called with adjusted input_size
+                                assert all(
+                                    size >= 3 * h for size in xlstm_init_calls
+                                ), (
+                                    f"All xLSTM instantiations should have input_size >= {3*h}. "
+                                    f"Got: {xlstm_init_calls}"
+                                )
+
+                                print(
+                                    f"✓ model_pipeline.py correctly:"
+                                    f"\n  1. Uses xLSTM directly (not AutoxLSTM) for refitting"
+                                    f"\n  2. Adjusts input_size to >= {3*h}: {xlstm_init_calls}"
+                                )
+
+                            except RuntimeError as e:
+                                if "negative dimension" in str(e):
+                                    pytest.fail(
+                                        f"FAILED: model_pipeline.py refitting code did not prevent "
+                                        f"tensor dimension error: {e}"
+                                    )
+                                else:
+                                    raise
